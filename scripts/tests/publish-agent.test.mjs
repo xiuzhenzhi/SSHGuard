@@ -21,6 +21,7 @@ cp.execFileSync=(cmd,args)=>{if(cmd==='git')return 'abc123';if(args[1]==='downlo
   if(mode==='new'){
    const args=JSON.parse(readFileSync(join(dir,'created.json'),'utf8'));
    assert.equal(args[2],'agent-v0.3.21');assert.ok(args.includes('--latest=false'));
+   assert.ok(args.includes('--verify-tag'));assert.ok(!args.includes('--target'));
    assert.ok(!args.some(v=>v.includes('sshguard-linux-')));
   }
   if(mode==='mismatch')assert.match(result.stderr,/never overwrite/);

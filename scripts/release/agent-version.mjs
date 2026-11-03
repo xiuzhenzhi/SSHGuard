@@ -7,6 +7,12 @@ export function agentTagExists(version) {
  try { execFileSync('git',['rev-parse','--verify',`refs/tags/${agentTag(version)}^{commit}`],{stdio:'pipe'}); return true; }
  catch { return false; }
 }
+export function agentTagAtHead(version) {
+ try {
+  return execFileSync('git',['rev-parse',`refs/tags/${agentTag(version)}^{commit}`],{encoding:'utf8'}).trim() ===
+   execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+ } catch { return false; }
+}
 export function affectsAgent(path) {
  if (path.endsWith('_test.go') || path.startsWith('scripts/tests/')) return false;
  return ['go.mod','go.sum','scripts/build/build-agents.mjs','scripts/release/agent-version.mjs'].includes(path) ||

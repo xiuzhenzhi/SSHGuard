@@ -68,6 +68,6 @@ if (!changelog.includes(`\n## ${version}\n`)) {
   writeFileSync('CHANGELOG.md', changelog);
 }
 writeFileSync('docs/RELEASE-NOTES.md', `# SSHGuard ${tag}\n\n${changes}\n\n升级前备份数据库、配置和 ENCRYPTION_KEY。数据库类型不会自动切换或搬迁，程序回退不撤销数据库迁移。安装与升级见 [快速开始](guides/QUICKSTART.md)。\n`);
-appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\ntag=${tag}\n`);
+appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\ntag=${tag}\nagent_tag=${changed ? agentTag(agentVersion) : ''}\n`);
 appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Release preparation\n\nSelected version: **${tag}**\n\nMode: ${process.env.REQUESTED_VERSION?.trim() ? 'explicit version' : 'automatic patch increment'}\n`);
 console.log('Prepared ' + tag);

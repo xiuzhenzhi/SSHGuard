@@ -30,8 +30,7 @@ if (existing.status === 0) {
  // A network/auth failure is not proof of absence. Confirm the API reports 404.
  const check = spawnSync('gh',['api',`repos/${repo}/releases/tags/${tag}`],{encoding:'utf8'});
  if (!check.stderr?.includes('(HTTP 404)')) throw Error('Cannot verify Agent release absence: '+check.stderr);
- const sha = execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
- gh('release','create',tag,...files.map(n=>join('dist/release',n)), '--repo',repo,'--target',sha,'--latest=false',
+ gh('release','create',tag,...files.map(n=>join('dist/release',n)), '--repo',repo,'--verify-tag','--latest=false',
   ...(version.includes('-')?['--prerelease']:[]),'--title',`SSHGuard Agent v${version}`,
   '--notes',`Agent v${version}. Independent Agent version; controller releases use v* tags. See the online Agent guide for installation and upgrade instructions.`);
 }
