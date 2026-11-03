@@ -120,6 +120,7 @@ jobs:
           gh release create v0.3.23 dist/release/* --verify-tag --title 'SSHGuard v0.3.23' --notes-file docs/RELEASE-NOTES.md
   containers:
     needs: publish
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
     permissions:
       contents: read
       packages: write
