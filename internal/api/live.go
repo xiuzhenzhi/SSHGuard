@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"sync"
 	"time"
@@ -10,6 +11,20 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/gin-gonic/gin"
 )
+
+var errLiveSessionExpired = errors.New("session expired")
+
+// A database outage or a missed pong is not evidence that authentication ended.
+func (a *App) checkLiveSession(ctx context.Context, session string, ping func(context.Context) error) error {
+	var valid int
+	if err := a.db.Row(ctx, `SELECT COUNT(*) FROM sessions WHERE token_hash=? AND expires_at>?`, hash(session), time.Now().UTC()).Scan(&valid); err != nil {
+		return err
+	}
+	if valid != 1 {
+		return errLiveSessionExpired
+	}
+	return ping(ctx)
+}
 
 type subscriber struct {
 	user    string
@@ -115,14 +130,14 @@ func (a *App) live(c *gin.Context) {
 			}
 		case <-ticker.C:
 			checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			var valid int
-			e := a.db.Row(checkCtx, `SELECT COUNT(*) FROM sessions WHERE token_hash=? AND expires_at>?`, hash(session), time.Now().UTC()).Scan(&valid)
-			if e == nil && valid == 1 {
-				e = conn.Ping(checkCtx)
-			}
+			e := a.checkLiveSession(checkCtx, session, conn.Ping)
 			cancel()
-			if e != nil || valid != 1 {
-				conn.Close(websocket.StatusPolicyViolation, "session expired")
+			if e != nil {
+				if errors.Is(e, errLiveSessionExpired) {
+					conn.Close(websocket.StatusPolicyViolation, "session expired")
+				} else {
+					conn.Close(websocket.StatusInternalError, "connection check unavailable")
+				}
 				return
 			}
 		}

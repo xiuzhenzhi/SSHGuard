@@ -314,7 +314,17 @@ function startLive() {
   socket=current;
   current.onopen=()=>{if(socket!==current)return;liveState.value='实时连接';retryDelay=1000;scheduleRefresh();};
   current.onmessage=event=>{if(socket!==current)return;try{if(JSON.parse(event.data).type==='refresh')scheduleRefresh();}catch{}};
-  current.onclose=event=>{if(socket!==current || !user.value)return;if(event.code===1008){clearSession();return;}socket=null;liveState.value='定时同步';reconnect=setTimeout(startLive,retryDelay+Math.random()*1000);retryDelay=Math.min(30000,retryDelay*2);};
+  current.onclose=async event=>{
+    if(socket!==current || !user.value)return;
+    liveState.value='定时同步';
+    if(event.code===1008){
+      // A proxy or older server can use 1008 for a transport failure. Only a
+      // confirmed HTTP 401 should end the browser session (handled by api).
+      try{await api('/auth/me');}catch{}
+      if(socket!==current || !user.value)return;
+    }
+    socket=null;reconnect=setTimeout(startLive,retryDelay+Math.random()*1000);retryDelay=Math.min(30000,retryDelay*2);
+  };
 }
 function onVisible(){if(!document.hidden && user.value)scheduleRefresh();}
 document.addEventListener('visibilitychange',onVisible);
