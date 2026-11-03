@@ -389,7 +389,13 @@ jobs:
           sha256sum -c SHA256SUMS
           tar -xzf sshguard-linux-amd64.tar.gz -C ..
       - name: Verify installation, upgrades, permissions and recovery
-        run: sudo env "PATH=$PATH" GITHUB_ACTIONS=true SSHGUARD_NATIVE_DB=${{ matrix.database }} SSHGUARD_NATIVE_PROXY=${{ matrix.proxy }} sh scripts/tests/test-native-deploy.sh dist/sshguard-linux-amd64
+        # Keep the immutable candidate; load test-only fixes from the workflow revision.
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$WORKFLOW_SHA"
+          git show "$WORKFLOW_SHA:scripts/tests/test-native-api.mjs" > scripts/tests/test-native-api.mjs
+          sudo env "PATH=$PATH" GITHUB_ACTIONS=true SSHGUARD_NATIVE_DB=${{ matrix.database }} SSHGUARD_NATIVE_PROXY=${{ matrix.proxy }} sh scripts/tests/test-native-deploy.sh dist/sshguard-linux-amd64
       - name: Load proxy verifier from the workflow revision
         if: matrix.proxy == 'managed' && matrix.database == 'sqlite'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

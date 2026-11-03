@@ -26,7 +26,7 @@ if(process.argv[2]==='enroll'){
   if(!res.ok)throw Error('Agent fixture request failed: '+res.status);
  };
  await agent('update/poll',{});
- await agent('heartbeat',{version:'0.0.0'});
+ await agent('heartbeat',{version:'0.3.21-test'});
  await api(`/servers/${cfg.server_id}/update`,'POST',{});
 }else if(process.argv[2]==='verify-update'){
  const id=readFileSync(`${state}/server`,'utf8');
