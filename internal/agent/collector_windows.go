@@ -4,12 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/xml"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -34,17 +31,37 @@ func fileIdentityFromInfo(f *os.File, _ os.FileInfo) (string, error) { return fi
 
 type windowsEvent struct {
 	System struct {
+		EventID  int `xml:"EventID"`
+		Provider struct {
+			Name string `xml:"Name,attr"`
+		} `xml:"Provider"`
 		RecordID uint64 `xml:"EventRecordID"`
 		Time     struct {
 			Value string `xml:"SystemTime,attr"`
 		} `xml:"TimeCreated"`
 	} `xml:"System"`
 	Data struct {
-		Values []string `xml:"Data"`
+		Values []windowsData `xml:"Data"`
 	} `xml:"EventData"`
 	Render struct {
 		Message string `xml:"Message"`
 	} `xml:"RenderingInfo"`
+}
+
+type windowsData struct {
+	Name  string `xml:"Name,attr"`
+	Value string `xml:",chardata"`
+}
+
+func (record windowsEvent) message() string {
+	if record.Render.Message != "" {
+		return record.Render.Message
+	}
+	values := make([]string, 0, len(record.Data.Values))
+	for _, value := range record.Data.Values {
+		values = append(values, value.Value)
+	}
+	return strings.Join(values, " ")
 }
 
 func decodeWindowsXML(data []byte) []byte {
@@ -59,41 +76,9 @@ func decodeWindowsXML(data []byte) []byte {
 	return bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})
 }
 
-// The single collector goroutine owns this timer; avoid two wevtutil processes per idle poll.
+// The single collector goroutine owns this timer; avoid extra reset queries per idle poll.
 var nextLogResetCheck time.Time
 
-func readWindowsEvents(ctx context.Context, args ...string) ([]windowsEvent, error) {
-	cmd := exec.CommandContext(ctx, "wevtutil.exe", args...)
-	pipe, e := cmd.StdoutPipe()
-	if e != nil {
-		return nil, e
-	}
-	if e = cmd.Start(); e != nil {
-		return nil, errors.New("Windows OpenSSH event reader could not start")
-	}
-	// The input is bounded; no shell interpolation and no provider output in logs.
-	data, e := io.ReadAll(io.LimitReader(pipe, (4<<20)+1))
-	if e != nil || len(data) > 4<<20 {
-		cmd.Process.Kill()
-		cmd.Wait()
-		return nil, errors.New("Windows OpenSSH event output exceeds limit")
-	}
-	if e = cmd.Wait(); e != nil {
-		return nil, errors.New("OpenSSH/Operational unavailable; enable OpenSSH logging and grant the service read access")
-	}
-	data = decodeWindowsXML(data)
-	// /uni:true avoids machine-code-page loss in usernames. /e:Events supplies one XML root.
-	var root struct {
-		Events []windowsEvent `xml:"Event"`
-	}
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-	if e = xml.Unmarshal(data, &root); e != nil {
-		return nil, errors.New("invalid Windows OpenSSH event XML")
-	}
-	return root.Events, nil
-}
 func collectPlatform(ctx context.Context, s *spool, explicit string) (time.Time, error) {
 	if explicit != "" {
 		return collectFile(ctx, s, explicit)
@@ -144,10 +129,7 @@ func collectPlatform(ctx context.Context, s *spool, explicit string) (time.Time,
 		if e != nil {
 			return time.Time{}, errors.New("invalid OpenSSH event time")
 		}
-		message := record.Render.Message
-		if message == "" {
-			message = strings.Join(record.Data.Values, " ")
-		}
+		message := record.message()
 		next.Position, next.At = strconv.FormatUint(record.System.RecordID, 10), at
 		if event, ok := parseSSH(message, fmt.Sprintf("windows|%d|%s", record.System.RecordID, record.System.Time.Value), at); ok {
 			events = append(events, event)

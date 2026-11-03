@@ -230,9 +230,9 @@ func (a *App) heartbeat(c *gin.Context) {
 
 type Event struct {
 	ID       string    `json:"event_id" binding:"required,uuid"`
-	Type     string    `json:"event_type" binding:"required,oneof=ssh.login ssh.login_failed"`
-	Username string    `json:"username" binding:"required,max=128"`
-	IP       string    `json:"source_ip" binding:"required,ip"`
+	Type     string    `json:"event_type" binding:"required,oneof=ssh.login ssh.login_failed rdp.login rdp.login_failed vnc.login vnc.login_failed console.login console.login_failed"`
+	Username string    `json:"username" binding:"max=128"`
+	IP       string    `json:"source_ip" binding:"omitempty,ip"`
 	Port     *int      `json:"source_port" binding:"omitempty,min=1,max=65535"`
 	Method   string    `json:"auth_method" binding:"max=32"`
 	Outcome  string    `json:"outcome" binding:"required,oneof=success failure"`
@@ -240,7 +240,20 @@ type Event struct {
 }
 
 func validEvent(e Event, now time.Time) bool {
-	return !e.At.Before(now.AddDate(0, 0, -30)) && !e.At.After(now.Add(5*time.Minute)) && ((e.Type == "ssh.login" && e.Outcome == "success") || (e.Type == "ssh.login_failed" && e.Outcome == "failure")) && !strings.ContainsAny(e.Username, "\r\n\x00")
+	protocol, kind, ok := strings.Cut(e.Type, ".")
+	if !ok || (protocol != "ssh" && protocol != "rdp" && protocol != "vnc" && protocol != "console") {
+		return false
+	}
+	if protocol == "ssh" && (e.Username == "" || net.ParseIP(e.IP) == nil) {
+		return false
+	}
+	if protocol == "console" && (e.Username != "" || e.IP != "" || e.Port != nil) {
+		return false
+	}
+	if e.Port != nil && e.IP == "" {
+		return false
+	}
+	return !e.At.Before(now.AddDate(0, 0, -30)) && !e.At.After(now.Add(5*time.Minute)) && ((kind == "login" && e.Outcome == "success") || (kind == "login_failed" && e.Outcome == "failure")) && !strings.ContainsAny(e.Username, "\r\n\x00")
 }
 
 var errInvalidAgentMessage = errors.New("invalid agent message")
@@ -290,7 +303,9 @@ func (a *App) ingest(ctx context.Context, serverID, credentialHash string, in Ev
 		}
 		in.Events[i].At = event.At.UTC()
 		in.Events[i].ID = uuid.MustParse(event.ID).String()
-		in.Events[i].IP = net.ParseIP(event.IP).String()
+		if event.IP != "" {
+			in.Events[i].IP = net.ParseIP(event.IP).String()
+		}
 	}
 	rules, e := a.readRules(ctx, true)
 	if e != nil {

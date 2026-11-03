@@ -23,7 +23,7 @@ async function request(path:string,method='GET') {
   return requestJSON(path, method, method === 'POST' ? {} : undefined);
 }
 async function update() {
-  try { await ElMessageBox.confirm(`将 ${props.server.name} 的 Agent 更新到平台提供的版本。更新期间采集会短暂重启，失败时尝试恢复原程序。`, '更新 Agent', {confirmButtonText:'开始更新',cancelButtonText:'取消',type:'warning'}); } catch {return;}
+  try { await ElMessageBox.confirm(`将 ${props.server.name} 的 Agent 更新到平台提供的版本。更新期间采集会短暂重启，失败时尝试恢复原程序。`, '更新 Agent', {confirmButtonText:'开始更新',cancelButtonText:'取消',type:'warning',closeOnClickModal:false,closeOnPressEscape:true}); } catch {return;}
   busy.value=true;
   try {await request(`/servers/${props.server.id}/update`,'POST');ElMessage.success('更新任务已创建，目标机器将在下一次检查时处理');emit('changed');} catch(e){ElMessage.error((e as Error).message);}finally{busy.value=false;}
 }
@@ -53,7 +53,7 @@ function handleCommand(key:string) {
     <el-dropdown-item command="delete" divided style="color:var(--el-color-danger)">删除服务器</el-dropdown-item>
    </el-dropdown-menu></template>
   </el-dropdown>
-  <el-dialog v-model="visible" title="卸载 Agent" width="min(780px, 94vw)" append-to-body @closed="commands = {}">
+  <el-dialog v-model="visible" title="卸载 Agent" width="min(780px, 94vw)" append-to-body @closed="commands = {}" :close-on-click-modal="false" :close-on-press-escape="true">
     <el-alert title="只生成命令，不会远程卸载。请在目标机器以管理员身份执行。" type="warning" :closable="false"/>
     <p>卸载将永久清除本机 Agent 配置、凭据、采集队列、采集位置及专用日志，并移除程序和更新服务。中央历史记录可通过「删除服务器」清除；系统共享日志不会整库清空。</p>
     <el-select v-model="platform" aria-label="目标操作系统"><el-option label="Linux（Ubuntu / Debian / Alpine）" value="linux"/><el-option label="Windows（管理员 PowerShell）" value="windows"/></el-select>

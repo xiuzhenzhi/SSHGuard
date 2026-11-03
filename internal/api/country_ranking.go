@@ -70,7 +70,7 @@ func (a *App) buildCountryRanking(ctx context.Context) (gin.H, error) {
 	// Network lookups must not hold up the summary or login trend cache.
 	now := time.Now().UTC()
 	since := now.Add(-24 * time.Hour)
-	rows, err := a.db.QueryContext(ctx, a.db.Bind(`SELECT source_ip,COUNT(*) FROM ssh_events WHERE outcome='failure' AND occurred_at>=? AND occurred_at<=? GROUP BY source_ip`), since, now)
+	rows, err := a.db.QueryContext(ctx, a.db.Bind(`SELECT source_ip,COUNT(*) FROM ssh_events WHERE source_ip<>'' AND outcome='failure' AND occurred_at>=? AND occurred_at<=? GROUP BY source_ip`), since, now)
 	if err != nil {
 		return nil, err
 	}

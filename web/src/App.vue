@@ -16,6 +16,8 @@ import 'element-plus/es/components/drawer/style/css';
 import 'element-plus/es/components/message/style/css';
 import 'element-plus/es/components/message-box/style/css';
 import { Monitor, Grid, Connection, Bell, Message, Filter, CircleCheck, Key, Promotion, DocumentChecked, User, Lock, Setting, MapLocation, Plus, Refresh, Search, ArrowRight, Moon, Sunny, Expand, Close } from '@element-plus/icons-vue';
+import LoginIntro from './components/LoginIntro.vue';
+import {loginLabel,loginUser,loginSource,consoleHint} from './lib/loginEvents';
 import ConsoleNavigation from './components/ConsoleNavigation.vue';
 const loadOverview = () => import('./pages/Overview.vue');
 const Overview = lazyPage(loadOverview);
@@ -60,6 +62,7 @@ const trendRange=ref('24h');
 const management = computed(() => ['alerts','channels','rules','notifications'].includes(active.value));
 const liveState = ref('连接中');
 const refreshing = ref(false);
+const eventType = ref('');
 const search = ref(''), outcome = ref(''), username = ref(''), ip = ref(''), serverID = ref('');
 const login = reactive({username: 'admin', password: ''});
 const protection=ref<Row>({provider:'loading',site_key:''}),captchaAnswer=ref<Row>({}),captchaWidget=ref<InstanceType<typeof CaptchaWidget>>(),protectionError=ref(''),loginError=ref('');
@@ -108,15 +111,15 @@ const admin = computed(() => user.value?.role === 'admin');
 const writer = computed(() => ['admin', 'operator'].includes(user.value?.role));
 const nav = computed(() => [
   {id: 'dashboard', title: '安全总览', icon: Grid}, {id: 'servers', title: '服务器管理', icon: Monitor},
-  {id: 'events', title: 'SSH 事件', icon: Connection}, {id: 'alerts', title: '告警中心', icon: Bell},
+  {id: 'events', title: '登录事件', icon: Connection}, {id: 'alerts', title: '告警中心', icon: Bell},
   ...(admin.value ? [{id:'channels',title:'通知渠道',icon:Message},{id:'rules',title:'检测规则',icon:Filter},{id:'ip-allowlist',title:'IP 白名单',icon:CircleCheck},{id:'geoip',title:'地理位置',icon:MapLocation},{id:'database',title:'数据库',icon:DocumentChecked},{id:'login-protection',title:'登录防护',icon:Key},{id:'notifications',title:'投递记录',icon:Promotion},{id: 'audit-logs', title: '操作审计', icon: DocumentChecked}, {id: 'users', title: '用户与权限', icon: User}] : [])
 ]);
 const title = computed(() => nav.value.find(x => x.id === active.value)?.title || '安全总览');
 const roleNames:Row={admin:'管理员',operator:'操作员',viewer:'只读用户'};
 const auditNames:Row={'auth.login':'登录','auth.logout':'退出登录','auth.password.change':'修改密码','user.create':'创建用户','server.create':'添加服务器','server.update':'编辑服务器','server.reporting.update':'修改上报间隔','agent.enrolled':'Agent 注册','agent.enrollment.create':'生成安装命令','agent.revoke':'撤销 Agent 凭证','agent.update.request':'请求更新 Agent','agent.update.success':'Agent 更新成功','agent.update.failed':'Agent 更新失败','channel.create':'添加通知渠道','channel.update':'编辑通知渠道','channel.test':'测试通知渠道','notification.retry':'重试通知投递','rule.save':'保存检测规则','alert.acknowledge':'确认告警','auth.ip.block':'封禁登录来源','auth.ip.unblock':'解除登录封禁','auth.protection.update':'更新登录防护','allowlist.create':'添加 IP 白名单','allowlist.delete':'移除 IP 白名单'};
 const countryNames=new Intl.DisplayNames(['zh-CN'],{type:'region'});
-const countryName=(row:Row)=>row.country_code?(countryNames.of(row.country_code)||row.country_name||row.country_code):(row.source_is_public===false?'内网 / 保留地址':'未知');
-const sourceAddress=(row:Row)=>row.source_port?(String(row.source_ip).includes(':')?'['+row.source_ip+']':row.source_ip)+':'+row.source_port:row.source_ip;
+const countryName=(row:Row)=>!row.source_ip?'不可获取':row.country_code?(countryNames.of(row.country_code)||row.country_name||row.country_code):(row.source_is_public===false?'内网 / 保留地址':'未知');
+const sourceAddress=loginSource;
 Object.assign(auditNames,{'geoip.settings.update':'更新地理位置设置','geoip.database.update':'更新 GeoIP 数据库','alert.acknowledge.batch':'批量确认告警'});
 Object.assign(auditNames,{'server.delete':'删除服务器','database.retention.update':'修改数据保留策略','database.maintenance.start':'开始数据库维护','database.maintenance.completed':'数据库维护完成','database.maintenance.failed':'数据库维护失败'});
 const time = (s: any) => s ? new Date(s).toLocaleString('zh-CN', {hour12: false}) : '尚无记录';
@@ -151,7 +154,7 @@ function clearSession() {
   commands.value = {}; commandDialog.value = false; detail.value = null;
   serverDialog.value = false; userDialog.value = false; passwordDialog.value = false;
   passwords.current_password = ''; passwords.new_password = ''; newUser.password = ''; login.password = '';
-  search.value = ''; outcome.value = ''; username.value = ''; ip.value = ''; serverID.value = '';
+  eventType.value = ''; search.value = ''; outcome.value = ''; username.value = ''; ip.value = ''; serverID.value = '';
 }
 async function api(path: string, method = 'GET', body?: any, signal?: AbortSignal) {
   const requestUser=user.value;
@@ -172,7 +175,7 @@ async function cachedAPI(path: string, method = 'GET', body?: any, signal?: Abor
 function listPath() {
   const params = new URLSearchParams({page: String(page.value), page_size: active.value === 'rules' ? '100' : '20'});
   if (active.value === 'servers' && search.value) params.set('q',search.value);
-  if (active.value === 'events') {if (outcome.value) params.set('outcome',outcome.value);if (username.value) params.set('username',username.value);if (ip.value) params.set('source_ip',ip.value);if (serverID.value) params.set('server_id',serverID.value);}
+  if (active.value === 'events') {if(eventType.value)params.set('event_type',eventType.value);if (outcome.value) params.set('outcome',outcome.value);if (username.value) params.set('username',username.value);if (ip.value) params.set('source_ip',ip.value);if (serverID.value) params.set('server_id',serverID.value);}
   return `/${active.value}?${params}`;
 }
 function restoreCachedPage() {
@@ -224,7 +227,7 @@ function writeRoute(mode:'push'|'replace'='replace') {
   if(active.value==='dashboard') {if(trendRange.value!=='24h')params.set('range',trendRange.value);}
   else if(page.value>1)params.set('page',String(page.value));
   if(active.value==='servers'&&search.value)params.set('q',search.value);
-  if(active.value==='events')for(const [key,value] of Object.entries({username:username.value,source_ip:ip.value,server_id:serverID.value,outcome:outcome.value}))if(value)params.set(key,value);
+  if(active.value==='events')for(const [key,value] of Object.entries({event_type:eventType.value,username:username.value,source_ip:ip.value,server_id:serverID.value,outcome:outcome.value}))if(value)params.set(key,value);
   const query=params.toString(),path=pathForPage(active.value)+(query?'?'+query:'');
   if(path!==location.pathname+location.search)window.history[mode==='push'?'pushState':'replaceState'](null,'',path);
 }
@@ -238,6 +241,7 @@ function restoreRoute() {
   ip.value=active.value==='events'?params.get('source_ip')||'':'';
   serverID.value=active.value==='events'?params.get('server_id')||'':'';
   outcome.value=active.value==='events'?params.get('outcome')||'':'';
+  eventType.value=active.value==='events'?params.get('event_type')||'':'';
   const range=params.get('range')||'24h';
   trendRange.value=active.value==='dashboard'&&['24h','7d','14d','30d'].includes(range)?range:'24h';
   restoreCachedPage();detail.value=null;
@@ -263,10 +267,10 @@ async function enrollment(row: Row) {
 }
 async function updateAgent(row: Row) {commandGeneration++;clearTimeout(commandTimer);commands.value={};commandError.value='';updating.value=true;await perform(async () => {const result = await api('/agent/update-commands'); commands.value = result.commands;commandEndpoint.value = result.endpoint;commandInsecure.value = result.insecure_http;platform.value = /windows/i.test(row.distribution) ? 'windows' : 'linux'; commandDialog.value = true;});}
 async function changePassword() {await perform(async () => {await api('/auth/password','POST',passwords); clearSession(); ElMessage.success('密码已修改，所有旧会话已失效，请重新登录');});}
-async function revoke(row: Row) {try {await ElMessageBox.confirm(`撤销 ${row.name} 的 Agent 凭证后将拒绝其后续上报。`, '撤销凭证', {type:'warning',confirmButtonText:'撤销',cancelButtonText:'取消'});}catch{return;}await perform(async () => {await api(`/servers/${row.id}/revoke`,'POST',{});await load();});}
+async function revoke(row: Row) {try {await ElMessageBox.confirm(`撤销 ${row.name} 的 Agent 凭证后将拒绝其后续上报。`, '撤销凭证', {type:'warning',confirmButtonText:'撤销',cancelButtonText:'取消',closeOnClickModal:false,closeOnPressEscape:true});}catch{return;}await perform(async () => {await api(`/servers/${row.id}/revoke`,'POST',{});await load();});}
 async function deleteServer(row: Row) {
   if(busy.value)return;
-  try {await ElMessageBox.confirm(`确定删除服务器“${row.name}”？该服务器的 SSH 事件、告警和通知投递记录将永久删除，安装及 Agent 凭证立即失效。操作审计保留。此操作无法撤销；目标机器上的 Agent 需另行卸载。`, '删除服务器', {type:'warning',confirmButtonText:'确认删除',cancelButtonText:'取消',confirmButtonClass:'el-button--danger',closeOnClickModal:false});}catch{return;}
+  try {await ElMessageBox.confirm(`确定删除服务器“${row.name}”？该服务器的 登录事件、告警和通知投递记录将永久删除，安装及 Agent 凭证立即失效。操作审计保留。此操作无法撤销；目标机器上的 Agent 需另行卸载。`, '删除服务器', {type:'warning',confirmButtonText:'确认删除',cancelButtonText:'取消',confirmButtonClass:'el-button--danger',closeOnClickModal:false,closeOnPressEscape:true});}catch{return;}
   await perform(async () => {
     await api(`/servers/${row.id}`,'DELETE');
     ElMessage.success('服务器已删除');
@@ -281,7 +285,7 @@ async function deleteServer(row: Row) {
 async function saveUser() {await perform(async () => {await api('/users','POST',newUser);userDialog.value = false;newUser.password = '';await load();});}
 async function copyCommand() {if(!commandReady.value)return;try {await copyText(command.value);ElMessage.success('命令已复制');}catch(e){ElMessage.error((e as Error).message||'请手动复制命令');}}
 function history(row: Row) {serverID.value = row.id;navigate('events');}
-function showAllEvents(){username.value='';ip.value='';serverID.value='';outcome.value='';void navigate('events');}
+function showAllEvents(){eventType.value='';username.value='';ip.value='';serverID.value='';outcome.value='';void navigate('events');}
 
 let socket: WebSocket | null = null;
 let reconnect: ReturnType<typeof setTimeout> | undefined;
@@ -338,12 +342,12 @@ onUnmounted(() => {stopLive();cancelWarm();responses.clear();clearInterval(timer
   <div v-else-if="bootError" class="loading" role="alert"><p>{{ bootError }}</p><el-button @click="bootstrap">重新连接</el-button></div>
   <SetupWizard v-else-if="setupRequired" @complete="finishSetup" />
   <main v-else-if="!user" class="login-screen">
-    <section class="login-intro"><div class="brand"><el-icon><Lock /></el-icon> SSHGuard <span>控制台</span></div><div class="intro-copy"><div class="eyebrow">基础设施安全</div><h1>每一次连接，<br>都有迹可循。</h1><p>集中管理 Windows 与 Linux 服务器，<br>建立清晰、可追溯的 SSH 安全视图。</p><div class="intro-line"></div><small>SSH 审计 · 实时告警</small></div><footer>SSHGuard · 自托管服务器安全平台</footer></section>
-    <section class="login-form"><div class="eyebrow">欢迎回来</div><h2>登录管理控制台</h2><el-form label-position="top" @submit.prevent="signIn"><el-form-item label="用户名"><el-input v-model="login.username" autocomplete="username" size="large" /></el-form-item><el-form-item label="密码"><el-input v-model="login.password" type="password" show-password autocomplete="current-password" size="large" /></el-form-item><CaptchaWidget v-if="['turnstile','recaptcha','geetest'].includes(protection.provider)" :key="protection.provider+protection.site_key" ref="captchaWidget" :provider="protection.provider" :site-key="protection.site_key" @answer="value=>captchaAnswer=value"/><p v-if="loginError" class="captcha-error" role="alert">{{loginError}}</p><p v-if="protectionError" class="captcha-error" role="alert">{{protectionError}} <button type="button" class="text-action" @click="loadProtection">重试</button></p><el-button type="primary" size="large" native-type="submit" :disabled="!captchaReady || !login.username.trim() || !login.password" :loading="busy">安全登录 <el-icon><ArrowRight /></el-icon></el-button></el-form></section>
+    <LoginIntro/>
+    <section class="login-form"><div class="eyebrow">欢迎回来</div><h2>登录管理控制台</h2><p class="login-subtitle">欢迎回来，继续守护你的服务器。</p><el-form label-position="top" @submit.prevent="signIn"><el-form-item label="用户名"><el-input v-model="login.username" autocomplete="username" size="large" /></el-form-item><el-form-item label="密码"><el-input v-model="login.password" type="password" show-password autocomplete="current-password" size="large" /></el-form-item><CaptchaWidget v-if="['turnstile','recaptcha','geetest'].includes(protection.provider)" :key="protection.provider+protection.site_key" ref="captchaWidget" :provider="protection.provider" :site-key="protection.site_key" @answer="value=>captchaAnswer=value"/><p v-if="loginError" class="captcha-error" role="alert">{{loginError}}</p><p v-if="protectionError" class="captcha-error" role="alert">{{protectionError}} <button type="button" class="text-action" @click="loadProtection">重试</button></p><el-button type="primary" size="large" native-type="submit" :disabled="!captchaReady || !login.username.trim() || !login.password" :loading="busy">安全登录 <el-icon><ArrowRight /></el-icon></el-button></el-form><p class="login-footnote"><el-icon><Lock/></el-icon>SSHGuard · 自托管登录审计平台</p></section>
   </main>
   <div v-else class="shell">
     <aside v-if="!isMobile"><ConsoleNavigation :items="nav" :active="active" :version="summary.version" @navigate="navigate"/></aside>
-    <el-drawer v-else id="mobile-navigation" v-model="navigationOpen" class="mobile-navigation" direction="ltr" size="min(292px, 86vw)" title="导航菜单" :with-header="false" append-to-body destroy-on-close>
+    <el-drawer v-else id="mobile-navigation" v-model="navigationOpen" class="mobile-navigation" direction="ltr" size="min(292px, 86vw)" title="导航菜单" :with-header="false" append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="true">
       <ConsoleNavigation :items="nav" :active="active" :version="summary.version" @navigate="navigate">
         <button class="navigation-toggle" type="button" aria-label="关闭导航菜单" @click="navigationOpen=false"><el-icon><Close/></el-icon></button>
       </ConsoleNavigation>
@@ -358,12 +362,13 @@ onUnmounted(() => {stopLive();cancelWarm();responses.clear();clearInterval(timer
     <Allowlist v-else-if="active==='ip-allowlist'" :rows="rows" :api="cachedAPI" @refresh="load"/>
     <AlertCenter v-else-if="management" :key="active" :mode="active" :rows="rows" :admin="admin" :writer="writer" :api="cachedAPI" @refresh="load"/>
     <div v-else class="panel"><div v-if="active==='servers'" class="panel-heading server-toolbar"><div class="filters"><el-input v-model="search" placeholder="搜索名称、主机名或分组" :prefix-icon="Search" clearable @keyup.enter="filter" @clear="filter"/><el-button @click="filter">查询</el-button></div></div>
-    <div v-if="active === 'events'" class="event-filters"><el-input v-model="username" placeholder="用户名" clearable/><el-input v-model="ip" placeholder="来源 IP" clearable/><el-input v-model="serverID" placeholder="服务器 ID" clearable/><el-select v-model="outcome" placeholder="全部结果" clearable><el-option label="成功" value="success"/><el-option label="失败" value="failure"/></el-select><el-button type="primary" @click="filter">筛选</el-button></div>
+    <div v-if="active === 'events'" class="event-filters"><el-select v-model="eventType" placeholder="全部登录类型" clearable><el-option v-for="kind in ['ssh','rdp','vnc','console']" :key="kind" :label="loginLabel({event_type:kind+'.login'})+' · 成功'" :value="kind+'.login'"/><el-option v-for="kind in ['ssh','rdp','vnc','console']" :key="kind+'-failed'" :label="loginLabel({event_type:kind+'.login'})+' · 失败'" :value="kind+'.login_failed'"/></el-select><el-input v-model="username" placeholder="用户名" clearable/><el-input v-model="ip" placeholder="来源 IP" clearable/><el-input v-model="serverID" placeholder="服务器 ID" clearable/><el-select v-model="outcome" placeholder="全部结果" clearable><el-option label="成功" value="success"/><el-option label="失败" value="failure"/></el-select><el-button type="primary" @click="filter">筛选</el-button></div>
+    <p v-if="active==='events'" class="event-console-note">“远程 VNC 登录”表示{{consoleHint}}</p>
     <ServerList v-if="active==='servers'" :rows="rows" :admin="admin" :writer="writer" :busy="busy" @history="history" @edit="editServer" @enroll="enrollment" @update="updateAgent" @revoke="revoke" @remove="deleteServer" @changed="responses.clear();load()"/>
-    <el-table v-else-if="active === 'events'" :data="rows" empty-text="暂无 SSH 事件，请检查 Agent 采集状态并发起一次 SSH 登录。" @row-click="(row: Row) => detail = row">
+    <el-table v-else-if="active === 'events'" :data="rows" empty-text="暂无 登录事件，请检查 Agent 采集状态并发起一次登录。" @row-click="(row: Row) => detail = row">
       <el-table-column label="发生时间" min-width="180"><template #default="{row}">{{ time(row.occurred_at) }}</template></el-table-column>
       <el-table-column prop="server_name" label="服务器" min-width="150"/>
-      <el-table-column prop="username" label="用户" min-width="100"/>
+      <el-table-column label="登录类型" min-width="155"><template #default="{row}"><span class="event-protocol" :title="row.event_type?.startsWith('console.')?consoleHint:loginLabel(row)">{{loginLabel(row)}}</span></template></el-table-column><el-table-column label="用户" min-width="110"><template #default="{row}">{{loginUser(row)}}</template></el-table-column>
       <el-table-column label="国家 / 地区" min-width="150"><template #default="{row}"><span class="event-country"><CountryFlag :code="row.country_code" :name="countryName(row)"/>{{countryName(row)}}</span></template></el-table-column>
       <el-table-column label="来源 IP / 端口" min-width="210"><template #default="{row}">{{sourceAddress(row)}}</template></el-table-column>
       <el-table-column label="认证方式" min-width="110"><template #default="{row}">{{({password:'密码',publickey:'公钥','keyboard-interactive':'交互认证'} as Row)[row.auth_method]||row.auth_method||'—'}}</template></el-table-column>
@@ -375,9 +380,9 @@ onUnmounted(() => {stopLive();cancelWarm();responses.clear();clearInterval(timer
     <div v-if="(management && active!=='rules') || active==='ip-allowlist'" class="pagination"><span>第 {{ page }} 页 · 每页 20 条</span><el-button :disabled="page<=1" @click="page--;load()">上一页</el-button><el-button :disabled="!more" @click="page++;load()">下一页</el-button></div>
     </section></div>
   </div>
-  <el-dialog v-model="serverDialog" :title="server.id ? '编辑服务器' : '添加服务器'" width="min(520px, 94vw)"><el-form label-position="top" @submit.prevent="saveServer"><el-form-item label="服务器名称（可选）"><el-input v-model="server.name" maxlength="128" placeholder="留空自动命名"/></el-form-item><el-form-item label="分组"><el-input v-model="server.group_name" maxlength="64" placeholder="例如：生产环境 / 华东"/></el-form-item><el-form-item label="备注"><el-input v-model="server.notes" type="textarea" maxlength="1024"/></el-form-item><div class="dialog-actions"><el-button @click="serverDialog=false">取消</el-button><el-button type="primary" native-type="submit" :loading="busy">{{server.id ? '保存服务器' : '添加服务器'}}</el-button></div></el-form></el-dialog>
-  <el-dialog v-model="userDialog" title="创建用户" width="min(480px, 94vw)" @closed="newUser.password=''"><el-form label-position="top" @submit.prevent="saveUser"><el-form-item label="用户名（3–64 字符）"><el-input v-model="newUser.username"/></el-form-item><el-form-item label="密码（12–72 字节）"><el-input v-model="newUser.password" type="password" show-password/></el-form-item><el-form-item label="角色"><el-select v-model="newUser.role"><el-option label="只读用户" value="viewer"/><el-option label="操作员" value="operator"/><el-option label="管理员" value="admin"/></el-select></el-form-item><div class="dialog-actions"><el-button @click="userDialog=false">取消</el-button><el-button type="primary" native-type="submit" :loading="busy">创建用户</el-button></div></el-form></el-dialog>
-  <el-dialog v-model="commandDialog" :title="updating?'更新 Agent':'一键安装 Agent'" width="min(640px,94vw)" class="command-dialog">
+  <el-dialog v-model="serverDialog" :title="server.id ? '编辑服务器' : '添加服务器'" width="min(520px, 94vw)" :close-on-click-modal="false" :close-on-press-escape="true"><el-form label-position="top" @submit.prevent="saveServer"><el-form-item label="服务器名称（可选）"><el-input v-model="server.name" maxlength="128" placeholder="留空自动命名"/></el-form-item><el-form-item label="分组"><el-input v-model="server.group_name" maxlength="64" placeholder="例如：生产环境 / 华东"/></el-form-item><el-form-item label="备注"><el-input v-model="server.notes" type="textarea" maxlength="1024"/></el-form-item><div class="dialog-actions"><el-button @click="serverDialog=false">取消</el-button><el-button type="primary" native-type="submit" :loading="busy">{{server.id ? '保存服务器' : '添加服务器'}}</el-button></div></el-form></el-dialog>
+  <el-dialog v-model="userDialog" title="创建用户" width="min(480px, 94vw)" @closed="newUser.password=''" :close-on-click-modal="false" :close-on-press-escape="true"><el-form label-position="top" @submit.prevent="saveUser"><el-form-item label="用户名（3–64 字符）"><el-input v-model="newUser.username"/></el-form-item><el-form-item label="密码（12–72 字节）"><el-input v-model="newUser.password" type="password" show-password/></el-form-item><el-form-item label="角色"><el-select v-model="newUser.role"><el-option label="只读用户" value="viewer"/><el-option label="操作员" value="operator"/><el-option label="管理员" value="admin"/></el-select></el-form-item><div class="dialog-actions"><el-button @click="userDialog=false">取消</el-button><el-button type="primary" native-type="submit" :loading="busy">创建用户</el-button></div></el-form></el-dialog>
+  <el-dialog v-model="commandDialog" :title="updating?'更新 Agent':'一键安装 Agent'" width="min(640px,94vw)" class="command-dialog" :close-on-click-modal="false" :close-on-press-escape="true">
    <div class="platform-tabs" role="tablist" aria-label="目标系统"><button v-for="(label,key) in {linux:'Linux',windows:'Windows'}" :key="key" role="tab" :aria-selected="platform===key" :class="{selected:platform===key}" @click="platform=key">{{label}}</button></div>
    <div :class="['command-options',{'update-options':updating}]"><label>主控地址<input :value="commandEndpoint" readonly/></label><label v-if="!updating">上报间隔（秒）<input v-model.number="commandInterval" type="number" min="1" max="600" required/></label></div>
    <el-alert v-if="commandInsecure" title="HTTP 传输未加密，请仅在可信网络使用。" type="warning" :closable="false"/>
@@ -387,6 +392,6 @@ onUnmounted(() => {stopLive();cancelWarm();responses.clear();clearInterval(timer
    <details class="command-help"><summary>接入说明</summary><p>主控地址须能从目标服务器访问。上报间隔只在安装时写入 Agent 配置，更新保留原值。</p><p v-if="!updating">安装命令含短期凭证，请勿公开转发。重新生成会使旧命令失效。</p><p v-else>Alpine 采集权限修复需在目标服务器执行一次此更新命令。</p></details>
    <el-button class="copy-command" type="primary" :disabled="!commandReady" :loading="!updating&&commandGenerating" @click="copyCommand">{{updating?'复制更新命令':'复制安装命令'}}</el-button>
   </el-dialog>
-  <el-dialog v-model="passwordDialog" title="修改密码" width="min(520px, 94vw)" class="password-dialog" :close-on-click-modal="false" @closed="passwords.current_password = ''; passwords.new_password = ''"><el-form label-position="top" @submit.prevent="changePassword"><el-form-item label="当前密码"><el-input v-model="passwords.current_password" type="password" autocomplete="current-password" placeholder="输入当前密码" show-password/></el-form-item><el-form-item label="新密码"><el-input v-model="passwords.new_password" type="password" autocomplete="new-password" placeholder="输入 12–72 字节的新密码" show-password/><span class="field-hint">修改后所有设备上的旧会话都会失效。</span></el-form-item><div class="dialog-actions"><el-button :disabled="busy" @click="passwordDialog=false">取消</el-button><el-button type="primary" native-type="submit" :disabled="!passwords.current_password||!passwords.new_password" :loading="busy">保存并重新登录</el-button></div></el-form></el-dialog>
-  <el-dialog :model-value="!!detail" title="事件详情" width="min(700px, 94vw)" @close="detail = null"><pre class="detail">{{ JSON.stringify(detail,null,2) }}</pre></el-dialog>
+  <el-dialog v-model="passwordDialog" title="修改密码" width="min(520px, 94vw)" class="password-dialog" :close-on-click-modal="false" @closed="passwords.current_password = ''; passwords.new_password = ''" :close-on-press-escape="true"><el-form label-position="top" @submit.prevent="changePassword"><el-form-item label="当前密码"><el-input v-model="passwords.current_password" type="password" autocomplete="current-password" placeholder="输入当前密码" show-password/></el-form-item><el-form-item label="新密码"><el-input v-model="passwords.new_password" type="password" autocomplete="new-password" placeholder="输入 12–72 字节的新密码" show-password/><span class="field-hint">修改后所有设备上的旧会话都会失效。</span></el-form-item><div class="dialog-actions"><el-button :disabled="busy" @click="passwordDialog=false">取消</el-button><el-button type="primary" native-type="submit" :disabled="!passwords.current_password||!passwords.new_password" :loading="busy">保存并重新登录</el-button></div></el-form></el-dialog>
+  <el-dialog :model-value="!!detail" title="事件详情" width="min(700px, 94vw)" @close="detail = null" :close-on-click-modal="false" :close-on-press-escape="true"><pre class="detail">{{ JSON.stringify(detail,null,2) }}</pre></el-dialog>
 </template>

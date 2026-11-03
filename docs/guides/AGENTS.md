@@ -79,13 +79,18 @@ Linux 程序和管理脚本分别位于 `/opt/SSHGuard/Agent/sshguard-agent-bin`
 
 ## 采集与状态文件
 
-- Linux 优先读取 journal，其次读取 SSH 日志文件；可在 `agent.json` 中用 `log_file` 指定日志。
-- Windows 读取 `OpenSSH/Operational`，不包含 RDP 登录。
+- Linux 优先读取 journal，其次读取认证日志文件；采集 SSH 和 PAM `login` 控制台认证。可在 `agent.json` 中用 `log_file` 指定认证日志。
+- Windows 读取 `OpenSSH/Operational`、`Security` 的 RDP / 控制台登录和 `Application` 的 RealVNC / UltraVNC 事件。配置 `log_file` 时使用该文件代替 Windows 事件通道。
+- VNC 软件日志、权限和覆盖边界见 [远程登录采集](REMOTE-LOGINS.md)。
 - 首次从日志末尾开始采集，重启后继续读取；离线事件暂存本地，队列上限 10,000 条。
 - Linux 配置：`/opt/SSHGuard/Agent/agent.json`；状态：`/opt/SSHGuard/Agent/sshguard-agent/`。
 - Windows 配置：`%ProgramData%\SSHGuard\Agent\agent.json`；状态：`%ProgramData%\SSHGuard\Agent\sshguard-agent\`。
 
 ### 资源占用
+
+Agent 默认将 Go 内存软目标设为 32 MiB，并在多核机器上最多使用 2 个 Go 执行线程；显式设置 `GOMEMLIMIT` / `GOMAXPROCS` 时尊重运维配置。软目标不是进程内存硬上限，不包含程序映射、系统 API 和队列文件映射。Windows 直接调用事件日志 API，不再为每次采集启动 `wevtutil.exe`；文件采集复用读取缓冲区，VNC 时间和来源地址解析不依赖正则表达式。离线持久队列容量及重试机制保持不变。
+
+构建大小与本地内存对比见 [Agent 性能验证](../development/AGENT-PERFORMANCE.md)。
 
 Linux 和 Windows 使用相同的轻量队列与地址缓存。空闲时采集轮询逐步放缓，最长为安装上报间隔与 10 秒中的较小值；默认安装间隔 5 秒，空闲时最多每 5 秒检查一次。发现日志活动后恢复较快轮询，上报间隔保持安装值。
 

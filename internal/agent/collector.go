@@ -3,6 +3,7 @@ package agent
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -21,6 +23,10 @@ type collectorHealth struct {
 	state, message string
 	poll, event    time.Time
 }
+
+// One bounded reader is reused across file sources. Reset before returning it
+// so the pool never keeps file handles or old source buffers alive.
+var fileReaders = sync.Pool{New: func() any { return bufio.NewReaderSize(strings.NewReader(""), 65536) }}
 
 func (h *collectorHealth) update(e error, at time.Time) {
 	h.mu.Lock()
@@ -91,13 +97,13 @@ func runAgent(ctx context.Context, cfg Config, stateDir string) {
 	var wg sync.WaitGroup
 	if s != nil {
 		first, cancel := context.WithTimeout(ctx, 10*time.Second)
-		at, err := collectPlatform(first, s, cfg.LogFile)
+		at, err := collectSources(first, s, cfg)
 		cancel()
 		health.update(err, at)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			runCollector(ctx, s, cfg.LogFile, interval, health)
+			runCollector(ctx, s, cfg.LogFile, interval, health, cfg)
 		}()
 	}
 	defer wg.Wait()
@@ -160,7 +166,11 @@ func runAgent(ctx context.Context, cfg Config, stateDir string) {
 	}
 }
 
-func runCollector(ctx context.Context, s *spool, path string, interval time.Duration, health *collectorHealth) {
+func runCollector(ctx context.Context, s *spool, path string, interval time.Duration, health *collectorHealth, configs ...Config) {
+	cfg := Config{LogFile: path}
+	if len(configs) > 0 {
+		cfg = configs[0]
+	}
 	base := min(interval, 2*time.Second)
 	delay, maxIdle := base, min(interval, 10*time.Second)
 	pollTimer := time.NewTimer(delay)
@@ -178,7 +188,7 @@ func runCollector(ctx context.Context, s *spool, path string, interval time.Dura
 			}
 			before, _ := s.position()
 			pollCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			at, err := collectPlatform(pollCtx, s, path)
+			at, err := collectSources(pollCtx, s, cfg)
 			cancel()
 			if ctx.Err() != nil {
 				return
@@ -191,6 +201,8 @@ func runCollector(ctx context.Context, s *spool, path string, interval time.Dura
 				delay = base
 			case err != nil:
 				delay = min(delay*2, 30*time.Second)
+			case !at.IsZero():
+				delay = base
 			case before == after:
 				delay = min(delay*2, maxIdle)
 			default:
@@ -222,7 +234,11 @@ func logTimestamp(line string, now time.Time) (time.Time, bool) {
 
 // Follow rename rotation by file identity. Queue and byte offset share a durable transaction.
 func collectFile(ctx context.Context, s *spool, path string) (time.Time, error) {
-	previous, e := s.position()
+	return collectFileSource(ctx, s, path, "", parseLogin)
+}
+
+func collectFileSource(ctx context.Context, s *spool, path, source string, parse func(string, string, time.Time) (SSHEvent, bool)) (time.Time, error) {
+	previous, e := s.positionFor(source)
 	if e != nil {
 		return time.Time{}, e
 	}
@@ -240,7 +256,7 @@ func collectFile(ctx context.Context, s *spool, path string) (time.Time, error) 
 		return time.Time{}, e
 	}
 	if previous.Kind != "file:"+path {
-		return time.Time{}, s.append(nil, cursor{Kind: "file:" + path, FileID: id, Offset: info.Size(), At: time.Now().UTC()})
+		return time.Time{}, s.appendFor(source, nil, cursor{Kind: "file:" + path, FileID: id, Offset: info.Size(), At: time.Now().UTC()})
 	}
 	if previous.FileID == id && previous.Offset == info.Size() {
 		return time.Time{}, nil
@@ -253,7 +269,7 @@ func collectFile(ctx context.Context, s *spool, path string) (time.Time, error) 
 		}
 		if candidate == nil {
 			// Record an explicit gap before resuming the current file on the next poll.
-			e = s.append(nil, cursor{Kind: previous.Kind, FileID: id, At: previous.At})
+			e = s.appendFor(source, nil, cursor{Kind: previous.Kind, FileID: id, At: previous.At})
 			if e != nil {
 				return time.Time{}, e
 			}
@@ -270,7 +286,7 @@ func collectFile(ctx context.Context, s *spool, path string) (time.Time, error) 
 	if info.Size() < previous.Offset {
 		previous.Offset = 0
 		previous.FileID = id
-		if e = s.append(nil, previous); e != nil {
+		if e = s.appendFor(source, nil, previous); e != nil {
 			return time.Time{}, e
 		}
 		return time.Time{}, errors.New("SSH log was truncated; collection resumes at the beginning")
@@ -278,7 +294,14 @@ func collectFile(ctx context.Context, s *spool, path string) (time.Time, error) 
 	if _, e = f.Seek(previous.Offset, io.SeekStart); e != nil {
 		return time.Time{}, e
 	}
-	reader := bufio.NewReaderSize(f, 65536)
+	var prefix [4]byte
+	_, _ = f.ReadAt(prefix[:], 0)
+	wide := source != "" && ((prefix[0] == 255 && prefix[1] == 254) || (prefix[0] == '[' && prefix[1] == 0))
+	reader := fileReaders.Get().(*bufio.Reader)
+	reader.Reset(f)
+	defer func() { reader.Reset(strings.NewReader("")); fileReaders.Put(reader) }()
+	var wideBytes []byte
+	var wideWords []uint16
 	next := previous
 	events := []SSHEvent{}
 	last := time.Time{}
@@ -287,11 +310,23 @@ func collectFile(ctx context.Context, s *spool, path string) (time.Time, error) 
 		if e = ctx.Err(); e != nil {
 			return time.Time{}, e
 		}
-		raw, e := reader.ReadSlice('\n')
+		raw, e := readLoginLine(reader, wide, wideBytes)
 		if e == bufio.ErrBufferFull {
 			return time.Time{}, errors.New("SSH log line exceeds 64 KiB; inspect source")
 		}
 		line := string(raw)
+		if wide {
+			wideBytes = raw[:0]
+			if cap(wideWords) < len(raw)/2 {
+				wideWords = make([]uint16, len(raw)/2)
+			} else {
+				wideWords = wideWords[:len(raw)/2]
+			}
+			for i := range wideWords {
+				wideWords[i] = binary.LittleEndian.Uint16(raw[i*2:])
+			}
+			line = strings.TrimPrefix(string(utf16.Decode(wideWords)), "\ufeff")
+		}
 		if e == io.EOF {
 			eof = true
 			break
@@ -300,17 +335,31 @@ func collectFile(ctx context.Context, s *spool, path string) (time.Time, error) 
 			return time.Time{}, e
 		}
 		offset := next.Offset
-		next.Offset += int64(len(line))
-		if !strings.Contains(line, "sshd") {
-			continue
+		next.Offset += int64(len(raw))
+		var at time.Time
+		var ok bool
+		if source != "" {
+			if parsed, found := vncTimestamp(line, time.Now()); found {
+				at, ok = parsed, true
+				next.LogTime = parsed
+			}
+			if !ok {
+				at, ok = next.LogTime, true
+				if at.IsZero() {
+					at = time.Now().UTC()
+				}
+			}
+		} else {
+			at, ok = logTimestamp(line, time.Now())
 		}
-		at, ok := logTimestamp(line, time.Now())
 		if !ok {
 			continue
 		}
 		next.At = at
-		event, ok := parseSSH(line, fmt.Sprintf("file|%s|%d|%s", previous.FileID, offset, line), at)
+		// Ignore unrelated log lines without allocating/hashing a full identity.
+		event, ok := parse(line, "", at)
 		if ok {
+			event.ID = sourceEventID(fmt.Sprintf("file|%s|%d|%s", previous.FileID, offset, line))
 			events = append(events, event)
 			last = at
 		}
@@ -318,7 +367,7 @@ func collectFile(ctx context.Context, s *spool, path string) (time.Time, error) 
 	if rotated && eof {
 		next = cursor{Kind: previous.Kind, FileID: id, At: next.At}
 	}
-	if e = s.append(events, next); e != nil {
+	if e = s.appendFor(source, events, next); e != nil {
 		return time.Time{}, e
 	}
 	return last, nil

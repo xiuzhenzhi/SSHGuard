@@ -170,7 +170,7 @@ func (a *App) evaluateEvent(ctx context.Context, tx *sql.Tx, rules []Rule, serve
 			match = event.Outcome == "success" && privilegedUser(event.Username)
 			severity = "high"
 		case "failure_threshold":
-			if event.Outcome != "failure" {
+			if event.Outcome != "failure" || event.IP == "" {
 				continue
 			}
 			var err error
@@ -187,8 +187,20 @@ func (a *App) evaluateEvent(ctx context.Context, tx *sql.Tx, rules []Rule, serve
 		if event.Port != nil {
 			port = fmt.Sprint(*event.Port)
 		}
-		text := fmt.Sprintf("服务器：%s\n用户：%s\n来源：%s:%s\n认证方式：%s\n结果：%s\n发生时间：%s", name, event.Username, event.IP, port, event.Method, event.Outcome, event.At.Format(time.RFC3339))
+		source, username := event.IP, event.Username
+		if source == "" {
+			source = "不可获取"
+		} else if port != "" {
+			source = net.JoinHostPort(source, port)
+		}
+		if username == "" {
+			username = "未记录"
+		}
+		text := fmt.Sprintf("服务器：%s\n类型：%s\n用户：%s\n来源：%s\n认证方式：%s\n结果：%s\n发生时间：%s", name, event.Type, username, source, event.Method, event.Outcome, event.At.Format(time.RFC3339))
 		scope := event.IP
+		if !strings.HasPrefix(event.Type, "ssh.") {
+			scope = event.Type + "|" + scope
+		}
 		if rule.Kind != "failure_threshold" {
 			scope += "|" + event.Username
 		}

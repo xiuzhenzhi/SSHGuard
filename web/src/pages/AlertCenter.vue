@@ -19,7 +19,7 @@ watch(()=>[props.mode,props.rows],()=>{checked.value=checked.value.filter(id=>pe
 function toggleAll(event:Event){checked.value=(event.target as HTMLInputElement).checked?pending.value.map(row=>row.id):[];}
 async function acknowledgeBatch(all=false){
  if(saving.value||(!all&&!checked.value.length))return;
- if(all){try{await ElMessageBox.confirm('将确认所有分页中的待处理告警，已确认和已恢复的告警会自动跳过。','确认全部待处理告警',{confirmButtonText:'全部确认',cancelButtonText:'取消',type:'warning'});}catch{return;}}
+ if(all){try{await ElMessageBox.confirm('将确认所有分页中的待处理告警，已确认和已恢复的告警会自动跳过。','确认全部待处理告警',{confirmButtonText:'全部确认',cancelButtonText:'取消',type:'warning',closeOnClickModal:false,closeOnPressEscape:true});}catch{return;}}
  await perform(async()=>{const result=await props.api('/alerts/acknowledge','POST',all?{all:true}:{ids:[...checked.value]});checked.value=[];emit('refresh');ElMessage.success(result.acknowledged?`已确认 ${result.acknowledged} 条告警`:'没有需要确认的告警');});
 }
 const configFields=computed(()=>form.kind==='smtp' ? [{key:'host',label:'SMTP 主机',type:'text'},{key:'port',label:'端口',type:'number'},{key:'username',label:'登录用户名',type:'text'},{key:'password',label:'登录密码',type:'password'},{key:'from',label:'发件地址',type:'email'}] : form.kind==='telegram' ? [{key:'bot_token',label:'Bot Token',type:'password'},{key:'chat_id',label:'Chat ID',type:'text'}] : [{key:'url',label:'HTTPS Webhook 地址',type:'password'},...(['webhook','dingtalk','feishu'].includes(form.kind)?[{key:'secret',label:'签名密钥',type:'password'}]:[])]);
@@ -62,7 +62,7 @@ async function retry(row:Row){await perform(async()=>{await props.api(`/notifica
    </tr></tbody>
   </table></div>
  </section>
- <el-dialog v-model="dialog" :title="(form.id?'编辑':'添加')+(isChannel?'通知渠道':'检测规则')" width="min(640px, 94vw)" @closed="reset">
+ <el-dialog v-model="dialog" :title="(form.id?'编辑':'添加')+(isChannel?'通知渠道':'检测规则')" width="min(640px, 94vw)" @closed="reset" :close-on-click-modal="false" :close-on-press-escape="true">
   <form class="editor" @submit.prevent="save">
    <label>名称<input v-model="form.name" required maxlength="128" placeholder="清楚描述用途，例如：生产环境登录通知"/></label>
    <div class="form-grid"><label>类型<select v-model="form.kind" :disabled="isChannel && !!form.id"><option v-for="(label,key) in (isChannel?kinds:rules)" :key="key" :value="key">{{ label }}</option></select></label><label class="check-label"><input v-model="form.enabled" type="checkbox"/>启用此{{ isChannel?'渠道':'规则' }}</label></div>
@@ -81,5 +81,5 @@ async function retry(row:Row){await perform(async()=>{await props.api(`/notifica
    <div class="dialog-actions"><button type="button" class="secondary-action" @click="dialog=false">取消</button><button class="primary-action" type="submit" :disabled="saving">{{ saving?'保存中…':'保存配置' }}</button></div>
   </form>
  </el-dialog>
- <el-dialog :model-value="!!selected" title="告警详情" width="min(640px,94vw)" @close="selected=null"><template v-if="selected"><h3>{{ selected.title }}</h3><p>{{ stamp(selected.created_at) }} · {{ selected.server_name || '系统' }}</p><pre class="detail">{{ selected.message }}</pre></template></el-dialog>
+ <el-dialog :model-value="!!selected" title="告警详情" width="min(640px,94vw)" @close="selected=null" :close-on-click-modal="false" :close-on-press-escape="true"><template v-if="selected"><h3>{{ selected.title }}</h3><p>{{ stamp(selected.created_at) }} · {{ selected.server_name || '系统' }}</p><pre class="detail">{{ selected.message }}</pre></template></el-dialog>
 </template>

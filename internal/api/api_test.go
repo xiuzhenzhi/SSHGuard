@@ -24,7 +24,7 @@ func TestValidEvent(t *testing.T) {
 		want                bool
 	}{{"success", "ssh.login", "success", now, true}, {"mismatch", "ssh.login", "failure", now, false}, {"old", "ssh.login", "success", now.AddDate(0, 0, -31), false}, {"future", "ssh.login", "success", now.Add(6 * time.Minute), false}, {"failure", "ssh.login_failed", "failure", now, true}} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := validEvent(Event{Type: tc.kind, Outcome: tc.outcome, At: tc.at}, now); got != tc.want {
+			if got := validEvent(Event{Type: tc.kind, Outcome: tc.outcome, At: tc.at, Username: "root", IP: "192.0.2.1"}, now); got != tc.want {
 				t.Fatalf("got %v want %v", got, tc.want)
 			}
 		})
@@ -346,4 +346,5 @@ func TestIntegration(t *testing.T) {
 		testConcurrentAgents(t, db)
 	}
 	testRetentionPreservesUnsent(t, db, id)
+	testRemoteEventIngestion(t, db)
 }

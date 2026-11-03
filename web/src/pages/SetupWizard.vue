@@ -90,7 +90,7 @@ async function retryReady() {
 
 <template>
   <main class="setup-screen">
-    <div class="setup-brand"><span class="brand-mark" aria-hidden="true">S</span> SSHGuard <span class="brand-caption">SSH 登录审计</span></div>
+    <div class="setup-brand"><span class="brand-mark" aria-hidden="true">S</span> SSHGuard <span class="brand-caption">服务器登录审计</span></div>
     <div class="setup-layout">
       <div class="setup-intro">
         <div class="ready-badge"><span></span> 主控服务已启动</div>

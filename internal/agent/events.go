@@ -24,7 +24,7 @@ type SSHEvent struct {
 	Type     string    `json:"event_type"`
 	Username string    `json:"username"`
 	IP       string    `json:"source_ip"`
-	Port     int       `json:"source_port"`
+	Port     int       `json:"source_port,omitempty"`
 	Method   string    `json:"auth_method"`
 	Outcome  string    `json:"outcome"`
 	At       time.Time `json:"occurred_at"`
@@ -96,7 +96,7 @@ func parseSSH(message, identity string, at time.Time) (SSHEvent, bool) {
 					// A small username must not retain a whole 64 KiB log line in a batch.
 					username, method = strings.Clone(username), strings.Clone(method)
 				}
-				event := SSHEvent{ID: uuid.NewSHA1(uuid.NameSpaceOID, []byte(identity)).String(), Username: username, IP: ip.Unmap().String(), Port: port, Method: method, At: at.UTC(), Type: "ssh.login", Outcome: "success"}
+				event := SSHEvent{ID: sourceEventID(identity), Username: username, IP: ip.Unmap().String(), Port: port, Method: method, At: at.UTC(), Type: "ssh.login", Outcome: "success"}
 				if failed {
 					event.Type, event.Outcome = "ssh.login_failed", "failure"
 				}
@@ -108,7 +108,13 @@ func parseSSH(message, identity string, at time.Time) (SSHEvent, bool) {
 	return SSHEvent{}, false
 }
 
-func sshSpace(c byte) bool    { return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' }
+func sshSpace(c byte) bool { return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' }
+func sourceEventID(identity string) string {
+	if identity == "" {
+		return ""
+	}
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(identity)).String()
+}
 func asciiLetter(c byte) bool { return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' }
 func sshMethodByte(c byte) bool {
 	return asciiLetter(c) || c >= '0' && c <= '9' || strings.IndexByte("@._/-", c) >= 0
@@ -127,6 +133,7 @@ type cursor struct {
 	FileID   string    `json:"file_id,omitempty"`
 	Offset   int64     `json:"offset,omitempty"`
 	At       time.Time `json:"at"`
+	LogTime  time.Time `json:"log_time,omitempty"`
 }
 type spool struct {
 	db               *bolt.DB
@@ -217,16 +224,34 @@ func openSpool(dir string) (*spool, error) {
 	return s, nil
 }
 func (s *spool) position() (cursor, error) {
+	return s.positionFor("")
+}
+
+func (s *spool) positionFor(source string) (cursor, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if source != "" {
+		var c cursor
+		err := s.db.View(func(tx *bolt.Tx) error {
+			if raw := tx.Bucket([]byte("meta")).Get([]byte("cursor:" + source)); raw != nil {
+				return json.Unmarshal(raw, &c)
+			}
+			return nil
+		})
+		return c, err
+	}
 	return s.current, s.cursorErr
 }
 
 // Queue entries and source cursor are committed together and fsynced by bbolt.
 func (s *spool) append(events []SSHEvent, c cursor) error {
+	return s.appendFor("", events, c)
+}
+
+func (s *spool) appendFor(source string, events []SSHEvent, c cursor) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(events) == 0 {
+	if source == "" && len(events) == 0 {
 		if s.cursorErr != nil {
 			return s.cursorErr
 		}
@@ -258,11 +283,17 @@ func (s *spool) append(events []SSHEvent, c cursor) error {
 		if e != nil {
 			return e
 		}
-		return tx.Bucket([]byte("meta")).Put([]byte("cursor"), b)
+		key := "cursor"
+		if source != "" {
+			key += ":" + source
+		}
+		return tx.Bucket([]byte("meta")).Put([]byte(key), b)
 	})
 	if err == nil {
 		s.queued += len(events)
-		s.current, s.cursorErr = c, nil
+		if source == "" {
+			s.current, s.cursorErr = c, nil
+		}
 	}
 	return err
 }

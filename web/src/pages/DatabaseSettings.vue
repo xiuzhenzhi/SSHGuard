@@ -7,7 +7,7 @@ const status = ref<Row>({}), loading = ref(true), saving = ref(false), starting 
 const form = reactive({events:30,alerts:90,audit:180});
 const saved = ref({...form}), batchDays = ref(30);
 const categories = [
-  {key:'events' as const,name:'SSH 事件',description:'登录成功、认证失败及来源地址记录'},
+  {key:'events' as const,name:'登录事件',description:'登录成功、认证失败及来源地址记录'},
   {key:'alerts' as const,name:'告警与投递记录',description:'过期告警与已送达通知；未送达或失败任务继续保留'},
   {key:'audit' as const,name:'操作审计',description:'登录、配置修改和服务器维护操作'},
 ];
@@ -36,7 +36,7 @@ async function load(reset=true){
 async function save(){
   if(!valid.value||!dirty.value||saving.value)return;
   const shortened=categories.some(({key})=>form[key]>0&&(saved.value[key]===0||form[key]<saved.value[key]));
-  if(shortened){try{await ElMessageBox.confirm('缩短保留时间后，过期记录将在自动清理时永久删除。请确认需要保留的数据已备份。','确认保留策略',{type:'warning',confirmButtonText:'保存设置',cancelButtonText:'取消'});}catch{return;}}
+  if(shortened){try{await ElMessageBox.confirm('缩短保留时间后，过期记录将在自动清理时永久删除。请确认需要保留的数据已备份。','确认保留策略',{type:'warning',confirmButtonText:'保存设置',cancelButtonText:'取消',closeOnClickModal:false,closeOnPressEscape:true});}catch{return;}}
   if(!alive||saving.value)return;
   const submitted={...form};
   saving.value=true;error.value='';
@@ -45,7 +45,7 @@ async function save(){
 }
 async function reclaim(){
   if(running.value||starting.value)return;
-  try{await ElMessageBox.confirm(actionDescription.value+'维护期间服务可能响应缓慢，请确认在空闲时段执行。','确认数据库维护',{type:'warning',confirmButtonText:action.value,cancelButtonText:'取消',closeOnClickModal:false});}catch{return;}
+  try{await ElMessageBox.confirm(actionDescription.value+'维护期间服务可能响应缓慢，请确认在空闲时段执行。','确认数据库维护',{type:'warning',confirmButtonText:action.value,cancelButtonText:'取消',closeOnClickModal:false,closeOnPressEscape:true});}catch{return;}
   if(!alive||running.value||starting.value)return;
   starting.value=true;error.value='';
   try{const task=await props.api('/settings/database/reclaim','POST',{confirm:true});if(!alive)return;status.value={...status.value,maintenance:task};poll();}

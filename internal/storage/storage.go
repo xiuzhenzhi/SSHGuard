@@ -182,6 +182,11 @@ func Migrate(ctx context.Context, d *DB) error {
 		if n > 0 {
 			continue
 		}
+		if d.Driver == "mysql" && f.Name() == "012_remote_logins.sql" {
+			if e = migrateMySQLRemoteLogins(ctx, conn); e != nil {
+				return fmt.Errorf("%s: %w", f.Name(), e)
+			}
+		}
 		b, e := migrations.Files.ReadFile(dir + "/" + f.Name())
 		if e != nil {
 			return e

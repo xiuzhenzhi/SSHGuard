@@ -23,13 +23,14 @@ import (
 var version = "0.3.21"
 
 type Config struct {
-	Endpoint              string `json:"endpoint"`
-	AllowInsecureHTTP     bool   `json:"allow_insecure_http,omitempty"`
-	Token                 string `json:"token"`
-	ServerID              string `json:"server_id"`
-	EnrollmentID          string `json:"enrollment_id,omitempty"`
-	LogFile               string `json:"log_file,omitempty"`
-	ReportIntervalSeconds int    `json:"report_interval_seconds,omitempty"`
+	Endpoint              string   `json:"endpoint"`
+	AllowInsecureHTTP     bool     `json:"allow_insecure_http,omitempty"`
+	Token                 string   `json:"token"`
+	ServerID              string   `json:"server_id"`
+	EnrollmentID          string   `json:"enrollment_id,omitempty"`
+	LogFile               string   `json:"log_file,omitempty"`
+	VNCLogs               []VNCLog `json:"vnc_logs,omitempty"`
+	ReportIntervalSeconds int      `json:"report_interval_seconds,omitempty"`
 }
 
 var client = &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -148,7 +149,7 @@ func loadConfig(path string) (Config, error) {
 	if e = json.Unmarshal(b, &c); e != nil {
 		return c, e
 	}
-	if !validEndpoint(c.Endpoint, c.AllowInsecureHTTP) || !validToken(c.Token) || c.ServerID == "" || c.ReportIntervalSeconds < 0 || c.ReportIntervalSeconds > 600 {
+	if !validEndpoint(c.Endpoint, c.AllowInsecureHTTP) || !validToken(c.Token) || c.ServerID == "" || c.ReportIntervalSeconds < 0 || c.ReportIntervalSeconds > 600 || !validVNCLogs(c.VNCLogs) {
 		return c, fmt.Errorf("invalid agent config: valid origin, explicit HTTP opt-in, server_id and token required")
 	}
 	return c, nil
@@ -164,6 +165,7 @@ func checkAgent(ctx context.Context, cfg Config, endpoint string) error {
 
 // Run starts the Agent command.
 func Run() {
+	configureResources()
 	path := flag.String("config", defaultConfigPath(), "configuration path")
 	stateDir := flag.String("state-dir", defaultStateDir(), "durable queue and collector cursor directory")
 	endpoint := flag.String("endpoint", "", "platform origin (IP or domain)")

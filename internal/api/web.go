@@ -42,6 +42,8 @@ func (a *App) serveWeb(c *gin.Context) {
 	switch {
 	case name == "." || name == "" || name == "index.html":
 		name = "index.html"
+	case name == "favicon.ico":
+		// Browsers may request the conventional icon even with an explicit SVG link.
 	case strings.HasPrefix(name, "assets/"), strings.HasPrefix(name, "downloads/"):
 	default:
 		// The console uses one entry page; unknown file-like paths stay 404.

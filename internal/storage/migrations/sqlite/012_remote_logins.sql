@@ -1,0 +1,10 @@
+CREATE TABLE ssh_events_remote (id INTEGER PRIMARY KEY AUTOINCREMENT, event_id varchar(36) NOT NULL, server_id varchar(36) NOT NULL REFERENCES servers(id), event_type varchar(32) NOT NULL CHECK(event_type IN ('ssh.login','ssh.login_failed','rdp.login','rdp.login_failed','vnc.login','vnc.login_failed','console.login','console.login_failed')), username varchar(128) NOT NULL, source_ip varchar(45) NOT NULL, source_port integer CHECK(source_port BETWEEN 1 AND 65535), auth_method varchar(32) NOT NULL DEFAULT '', outcome varchar(16) NOT NULL CHECK(outcome IN ('success','failure')), occurred_at timestamp NOT NULL, received_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(server_id,event_id));
+INSERT INTO ssh_events_remote SELECT * FROM ssh_events;
+DROP TABLE ssh_events;
+ALTER TABLE ssh_events_remote RENAME TO ssh_events;
+CREATE INDEX events_time ON ssh_events(occurred_at DESC);
+CREATE INDEX events_server_time ON ssh_events(server_id,occurred_at DESC);
+CREATE INDEX events_ip_time ON ssh_events(source_ip,occurred_at DESC);
+CREATE INDEX events_order ON ssh_events(occurred_at DESC,id DESC);
+UPDATE alert_rules SET name='登录成功' WHERE id='00000000-0000-4000-8000-000000000001' AND name='SSH 登录成功';
+UPDATE alert_rules SET name='认证失败过多' WHERE id='00000000-0000-4000-8000-000000000002' AND name='SSH 认证失败过多';

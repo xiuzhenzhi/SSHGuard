@@ -12,3 +12,5 @@ import './lib/theme';
 const app = createApp(App);
 provideGlobalConfig({locale:zhCn},app,true);
 app.use(ElMessage).use(ElMessageBox).mount('#app');
+
+import './styles/login.css';

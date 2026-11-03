@@ -57,6 +57,8 @@
 
 向 `/api/v1/agent/events/batch` POST。使用当前时间和新的事件 UUID，重试沿用同一 UUID。响应字段为 `accepted/inserted/duplicates`；校验失败时整批拒绝。
 
+`event_type` 支持 `ssh/rdp/vnc/console` 与 `.login/.login_failed` 组合，必须分别对应 `success/failure`。SSH 仍要求非空用户名和有效 IP；RDP / VNC 允许缺失用户名和 IP。控制台必须传空用户名、空 IP 并省略端口，以确保不存储用户名。未知端口省略或为 `null`，不能传 `0`；有端口时必须有 IP。缺失 IP 不参与 GeoIP 查询及来源失败阈值检测。数据库沿用 `ssh_events` 表名存储全部登录类型。
+
 
 ## 安装命令响应
 

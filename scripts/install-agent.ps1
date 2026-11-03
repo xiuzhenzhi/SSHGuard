@@ -94,10 +94,11 @@ function Initialize-CollectorAccess {
     }
     $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($serviceIdentity,'Modify','ContainerInherit,ObjectInherit','None','Allow')))
     Set-Acl -LiteralPath $state -AclObject $acl
-    # Grant only this service read access to OpenSSH, rather than all LocalService processes access to all event logs.
+    # Grant channel read permission only to this service SID.
+    foreach ($channelName in @('OpenSSH/Operational', 'Security', 'Application')) {
     $channel = $null
     try {
-        $channel = New-Object System.Diagnostics.Eventing.Reader.EventLogConfiguration('OpenSSH/Operational')
+        $channel = New-Object System.Diagnostics.Eventing.Reader.EventLogConfiguration($channelName)
         $descriptor = New-Object Security.AccessControl.RawSecurityDescriptor($channel.SecurityDescriptor)
         $found = $false
         foreach ($ace in $descriptor.DiscretionaryAcl) {
@@ -110,8 +111,9 @@ function Initialize-CollectorAccess {
             $channel.SaveChanges()
         }
     } catch [System.Diagnostics.Eventing.Reader.EventLogNotFoundException] {
-        Write-Warning '未找到 OpenSSH 日志，请安装 Windows OpenSSH Server 后查看控制台采集状态。'
+        Write-Warning ("未找到日志通道 {0}，请检查相应服务和采集状态。" -f $channelName)
     } finally { if ($channel) { $channel.Dispose() } }
+    }
 }
 Protect-Directory $installDir
 function Test-FixedUpdaterTask($Task, [string]$Shell, [string]$Runner) {

@@ -70,9 +70,10 @@ func collectPlatform(ctx context.Context, s *spool, explicit string) (time.Time,
 }
 
 type journalRecord struct {
-	Cursor    string `json:"__CURSOR"`
-	Timestamp string `json:"__REALTIME_TIMESTAMP"`
-	Message   string `json:"MESSAGE"`
+	Identifier string `json:"SYSLOG_IDENTIFIER"`
+	Cursor     string `json:"__CURSOR"`
+	Timestamp  string `json:"__REALTIME_TIMESTAMP"`
+	Message    string `json:"MESSAGE"`
 }
 
 func journalArguments(s *spool) (cursor, []string, error) {
@@ -80,7 +81,7 @@ func journalArguments(s *spool) (cursor, []string, error) {
 	if e != nil {
 		return cursor{}, nil, e
 	}
-	args := []string{"--no-pager", "--quiet", "--output=json", "--output-fields=__CURSOR,__REALTIME_TIMESTAMP,MESSAGE", "--identifier=sshd", "--identifier=sshd-session"}
+	args := []string{"--no-pager", "--quiet", "--output=json", "--output-fields=__CURSOR,__REALTIME_TIMESTAMP,MESSAGE,SYSLOG_IDENTIFIER", "--identifier=sshd", "--identifier=sshd-session", "--identifier=login", "--identifier=vncserver-x11", "--identifier=vncserver-x11-serviced", "--identifier=Xvnc", "--identifier=Xtigervnc", "--identifier=x0vncserver"}
 	if previous.Kind != "journal" {
 		previous = cursor{Kind: "journal", At: time.Now().UTC()}
 		if e = s.append(nil, previous); e != nil {
@@ -133,7 +134,16 @@ func collectJournal(ctx context.Context, s *spool) (time.Time, error) {
 		}
 		at := time.UnixMicro(micros).UTC()
 		next.Position, next.At = record.Cursor, at
-		if event, ok := parseSSH(record.Message, "journal|"+record.Cursor, at); ok {
+		var event SSHEvent
+		var ok bool
+		if strings.Contains(strings.ToLower(record.Identifier), "vnc") {
+			event, ok = parseVNC("auto", record.Message, "journal|"+record.Cursor, at)
+		} else if record.Identifier == "login" {
+			event, ok = parseLogin(record.Message, "journal|"+record.Cursor, at)
+		} else {
+			event, ok = parseSSH(record.Message, "journal|"+record.Cursor, at)
+		}
+		if ok {
 			events = append(events, event)
 			last = at
 		}

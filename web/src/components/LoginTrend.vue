@@ -27,7 +27,7 @@ function render(){
  const animate=!motion.matches&&!document.hidden&&!document.documentElement.classList.contains('theme-transition');
  chart.setOption({
   animation:animate,animationDuration:700,animationDurationUpdate:animate?500:0,animationEasing:'cubicOut',animationEasingUpdate:'cubicInOut',
-  aria:{enabled:true,label:{description:`SSH 登录趋势，成功 ${totals.value.success} 次，失败 ${totals.value.failure} 次。`}},
+  aria:{enabled:true,label:{description:`服务器登录趋势，成功 ${totals.value.success} 次，失败 ${totals.value.failure} 次。`}},
   grid:{left:46,right:20,top:20,bottom:30,containLabel:false},
   tooltip:{trigger:'axis',triggerOn:'mousemove|click',confine:true,alwaysShowContent:false,enterable:false,hideDelay:60,transitionDuration:.12,backgroundColor:dark?'#292d3b':'#ffffff',borderColor:dark?'#3b4050':'#e9e7ef',textStyle:{color:foreground,fontSize:12},padding:[13,16],extraCssText:'border-radius:8px;box-shadow:0 5px 22px #00000020;pointer-events:none;',
    axisPointer:{type:'line',animation:!motion.matches,lineStyle:{color:dark?'#928ab8':'#b1aac9',type:'dashed'}},
