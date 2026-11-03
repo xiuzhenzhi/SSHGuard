@@ -9,7 +9,7 @@ import (
 )
 
 func reportInterval(seconds int) time.Duration {
-	if seconds < 1 || seconds > 30 {
+	if seconds < 1 || seconds > 600 {
 		seconds = 5
 	}
 	return time.Duration(seconds) * time.Second

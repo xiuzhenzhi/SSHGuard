@@ -19,6 +19,8 @@ await new Promise(resolve => listener.close(resolve));
 const origin = 'http://127.0.0.1:'+port;
 const token = randomBytes(32).toString('hex');
 const password = randomBytes(20).toString('hex');
+const reportInterval = Number(process.env.SSHGUARD_TEST_REPORT_INTERVAL || 5);
+assert(Number.isInteger(reportInterval) && reportInterval >= 1 && reportInterval <= 600);
 const env = {...process.env, DB_DRIVER:'sqlite', DATABASE_URL:'file:'+join(root,'sshguard.db').replaceAll('\\','/'),
   PUBLIC_URL:'', ALLOW_INSECURE_HTTP:'true', TRUSTED_PROXY_CIDRS:'none', TLS_CERT_FILE:'', TLS_KEY_FILE:'', WEB_SETUP:'true',
   SETUP_TOKEN:token, SETUP_CONFIG_FILE:join(root,'setup.json'), ENCRYPTION_KEY:randomBytes(32).toString('hex'),
@@ -65,7 +67,7 @@ try {
   await api('/auth/login','POST',{username:'admin',password},403,{Origin:'http://attacker.example'});
   await api('/auth/login','POST',{username:'admin',password});
   const {id} = await api('/servers','POST',{name:'Direct IP smoke fixture'});
-  const registration = await api('/servers/'+id+'/enrollment','POST',{},200,{'X-Forwarded-Host':'attacker.example','X-Forwarded-Proto':'https'});
+  const registration = await api('/servers/'+id+'/enrollment','POST',{report_interval_seconds:reportInterval},200,{'X-Forwarded-Host':'attacker.example','X-Forwarded-Proto':'https'});
   assert.equal(registration.endpoint,origin);
   assert.equal(registration.insecure_http,true);
   for (const [platform,command] of Object.entries(registration.commands)) {
@@ -84,6 +86,7 @@ try {
   execFileSync(agentPath,[...args,'-allow-insecure-http'],{input:enrollment,stdio:['pipe','ignore','pipe'],windowsHide:true});
   const credential = JSON.parse(readFileSync(config,'utf8'));
   assert.equal(credential.allow_insecure_http,true);
+  assert.equal(credential.report_interval_seconds,reportInterval);
   execFileSync(agentPath,['-check','-endpoint',origin,'-config',config],{stdio:'pipe',windowsHide:true});
   await api('/agent/enroll','POST',{token:enrollment,hostname:'replay',distribution:'fixture',version:'0.0.0'},401);
   const agentHeaders = {Authorization:'Bearer '+credential.token};

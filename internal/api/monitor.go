@@ -61,6 +61,13 @@ func (a *App) monitorServer(ctx context.Context, id string, rules []Rule) error 
 		return e
 	}
 	now := time.Now().UTC()
+	var interval int
+	if e = tx.QueryRowContext(ctx, a.db.Bind(`SELECT `+intervalSQL("servers.id")+` FROM servers WHERE id=?`), id).Scan(&interval); e != nil {
+		return e
+	}
+	grace := reportGrace(interval)
+	// Match the SQL freshness checks at whole-second boundaries.
+	age := time.Duration(now.Unix()-seen.Unix()) * time.Second
 	for _, rule := range rules {
 		if rule.Group != "" && rule.Group != group {
 			continue
@@ -69,11 +76,11 @@ func (a *App) monitorServer(ctx context.Context, id string, rules []Rule) error 
 		text := ""
 		switch rule.Kind {
 		case "agent_offline":
-			active = now.Sub(seen) > time.Duration(rule.Threshold)*time.Second
+			active = age > max(grace, time.Duration(rule.Threshold)*time.Second)
 			text = fmt.Sprintf("服务器：%s\n最后心跳：%s\n请检查主机、网络及 Agent 服务。", name, seen.Format(time.RFC3339))
 		case "collector_error":
 			// Offline has its own rule; do not repeatedly report stale collector state.
-			active = now.Sub(seen) <= 90*time.Second && state != "healthy" && now.Sub(since) > time.Duration(rule.Threshold)*time.Second
+			active = age <= grace && state != "healthy" && now.Sub(since) > time.Duration(rule.Threshold)*time.Second
 			text = fmt.Sprintf("服务器：%s\n采集状态：%s\n诊断：%s", name, state, message)
 		default:
 			continue
@@ -82,7 +89,7 @@ func (a *App) monitorServer(ctx context.Context, id string, rules []Rule) error 
 			if e = a.raiseAlert(ctx, tx, rule, id, "", "health", "high", text); e != nil {
 				return e
 			}
-		} else if (rule.Kind == "agent_offline" && now.Sub(seen) <= 90*time.Second) || (rule.Kind == "collector_error" && state == "healthy" && now.Sub(seen) <= 90*time.Second) {
+		} else if (rule.Kind == "agent_offline" && age <= grace) || (rule.Kind == "collector_error" && state == "healthy" && age <= grace) {
 			if _, e = tx.ExecContext(ctx, a.db.Bind(`UPDATE alerts SET resolved_at=? WHERE server_id=? AND rule_id=? AND resolved_at IS NULL`), now, id, rule.ID); e != nil {
 				return e
 			}

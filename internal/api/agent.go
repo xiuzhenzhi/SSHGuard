@@ -48,7 +48,7 @@ func (a *App) enroll(c *gin.Context) {
 		if e := tx.QueryRowContext(c.Request.Context(), a.db.Bind(`SELECT report_interval_seconds FROM agent_install_settings WHERE token_hash=?`), hash(in.Token)).Scan(&interval); e != nil && e != sql.ErrNoRows {
 			return e
 		}
-		if interval < 1 || interval > 30 {
+		if interval < 1 || interval > 600 {
 			return errInvalidAgentMessage
 		}
 		if _, e := tx.ExecContext(c.Request.Context(), a.db.Bind(`UPDATE agent_enrollments SET used_at=? WHERE token_hash=?`), time.Now().UTC(), hash(in.Token)); e != nil {
@@ -129,7 +129,7 @@ func (a *App) agentTransaction(ctx context.Context, serverID, credentialHash str
 
 type Heartbeat struct {
 	SourceIP   string     `json:"-"`
-	Interval   int        `json:"report_interval_seconds" binding:"min=0,max=30"`
+	Interval   int        `json:"report_interval_seconds" binding:"min=0,max=600"`
 	Addresses  []string   `json:"ip_addresses" binding:"max=16,dive,ip"`
 	Version    string     `json:"version" binding:"max=32"`
 	State      string     `json:"collector_state" binding:"omitempty,oneof=starting healthy error"`

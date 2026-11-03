@@ -40,6 +40,11 @@ func (t *transport) disconnected() {
 	t.nextDial = time.Now().Add(delay/2 + time.Duration(rand.Int64N(int64(delay/2))))
 }
 func (t *transport) connect(ctx context.Context) {
+	// Long reporting intervals exceed common reverse-proxy WebSocket idle
+	// timeouts. Use the same acknowledged HTTP transport without an idle socket.
+	if t.cfg.ReportIntervalSeconds > 30 {
+		return
+	}
 	if t.conn != nil || time.Now().Before(t.nextDial) {
 		return
 	}

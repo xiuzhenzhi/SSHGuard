@@ -75,7 +75,7 @@ const command = computed(() => commands.value[platform.value] || '');
 const server = reactive({id: '', name: '', group_name: '', notes: ''});
 const commandServerID=ref(''),commandInterval=ref(5),generatedCommandInterval=ref(0);
 const commandGenerating=ref(false),commandError=ref('');
-const validCommandInterval=computed(()=>Number.isInteger(commandInterval.value)&&commandInterval.value>=1&&commandInterval.value<=30);
+const validCommandInterval=computed(()=>Number.isInteger(commandInterval.value)&&commandInterval.value>=1&&commandInterval.value<=600);
 const commandReady=computed(()=>!!command.value&&(updating.value||(validCommandInterval.value&&!commandGenerating.value&&commandInterval.value===generatedCommandInterval.value&&!commandError.value)));
 let commandGeneration=0,commandTimer:ReturnType<typeof setTimeout>|undefined,enrollmentRequest:Promise<void>|undefined;
 function scheduleEnrollment(){
@@ -379,11 +379,11 @@ onUnmounted(() => {stopLive();cancelWarm();responses.clear();clearInterval(timer
   <el-dialog v-model="userDialog" title="创建用户" width="min(480px, 94vw)" @closed="newUser.password=''"><el-form label-position="top" @submit.prevent="saveUser"><el-form-item label="用户名（3–64 字符）"><el-input v-model="newUser.username"/></el-form-item><el-form-item label="密码（12–72 字节）"><el-input v-model="newUser.password" type="password" show-password/></el-form-item><el-form-item label="角色"><el-select v-model="newUser.role"><el-option label="只读用户" value="viewer"/><el-option label="操作员" value="operator"/><el-option label="管理员" value="admin"/></el-select></el-form-item><div class="dialog-actions"><el-button @click="userDialog=false">取消</el-button><el-button type="primary" native-type="submit" :loading="busy">创建用户</el-button></div></el-form></el-dialog>
   <el-dialog v-model="commandDialog" :title="updating?'更新 Agent':'一键安装 Agent'" width="min(640px,94vw)" class="command-dialog">
    <div class="platform-tabs" role="tablist" aria-label="目标系统"><button v-for="(label,key) in {linux:'Linux',windows:'Windows'}" :key="key" role="tab" :aria-selected="platform===key" :class="{selected:platform===key}" @click="platform=key">{{label}}</button></div>
-   <div :class="['command-options',{'update-options':updating}]"><label>主控地址<input :value="commandEndpoint" readonly/></label><label v-if="!updating">上报间隔（秒）<input v-model.number="commandInterval" type="number" min="1" max="30" required/></label></div>
+   <div :class="['command-options',{'update-options':updating}]"><label>主控地址<input :value="commandEndpoint" readonly/></label><label v-if="!updating">上报间隔（秒）<input v-model.number="commandInterval" type="number" min="1" max="600" required/></label></div>
    <el-alert v-if="commandInsecure" title="HTTP 传输未加密，请仅在可信网络使用。" type="warning" :closable="false"/>
-   <label class="command-label">{{updating?'更新命令':'安装命令'}}</label><el-input :model-value="commandReady?command:''" :placeholder="commandError?'命令更新失败，请重试':!validCommandInterval?'请输入 1–30 之间的整数':'正在更新安装命令…'" readonly type="textarea" :rows="5" aria-label="部署命令"/>
+   <label class="command-label">{{updating?'更新命令':'安装命令'}}</label><el-input :model-value="commandReady?command:''" :placeholder="commandError?'命令更新失败，请重试':!validCommandInterval?'请输入 1–600 之间的整数':'正在更新安装命令…'" readonly type="textarea" :rows="5" aria-label="部署命令"/>
    <p v-if="commandError" class="captcha-error" role="alert">{{commandError}} <button type="button" class="text-action" @click="refreshEnrollment">重试</button></p>
-   <div class="command-meta" role="status"><span v-if="!updating&&commandReady">单次有效 · {{time(expires)}} 到期</span><span v-else-if="!updating">{{validCommandInterval?'安装命令随上报间隔自动更新。':'上报间隔须为 1–30 秒的整数。'}}</span><span v-else>保留身份与队列，失败自动恢复旧程序。</span></div>
+   <div class="command-meta" role="status"><span v-if="!updating&&commandReady">单次有效 · {{time(expires)}} 到期</span><span v-else-if="!updating">{{validCommandInterval?'安装命令随上报间隔自动更新。':'上报间隔须为 1–600 秒的整数。'}}</span><span v-else>保留身份与队列，失败自动恢复旧程序。</span></div>
    <details class="command-help"><summary>接入说明</summary><p>主控地址须能从目标服务器访问。上报间隔只在安装时写入 Agent 配置，更新保留原值。</p><p v-if="!updating">安装命令含短期凭证，请勿公开转发。重新生成会使旧命令失效。</p><p v-else>Alpine 采集权限修复需在目标服务器执行一次此更新命令。</p></details>
    <el-button class="copy-command" type="primary" :disabled="!commandReady" :loading="!updating&&commandGenerating" @click="copyCommand">{{updating?'复制更新命令':'复制安装命令'}}</el-button>
   </el-dialog>

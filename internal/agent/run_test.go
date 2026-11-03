@@ -18,6 +18,7 @@ func TestEnrollmentAndReplacement(t *testing.T) {
 	oldClient := client
 	defer func() { client = oldClient }()
 	credential := strings.Repeat("b", 64)
+	responseInterval := 600
 	fail := false
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if fail {
@@ -31,7 +32,7 @@ func TestEnrollmentAndReplacement(t *testing.T) {
 		if body["token"] != strings.Repeat("a", 64) || body["distribution"] == "" || body["version"] != version {
 			t.Errorf("missing enrollment metadata")
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"data": Config{Token: credential, ServerID: "test-server"}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": Config{Token: credential, ServerID: "test-server", ReportIntervalSeconds: responseInterval}})
 	}))
 	defer server.Close()
 	client = server.Client()
@@ -49,7 +50,7 @@ func TestEnrollmentAndReplacement(t *testing.T) {
 			t.Fatal(e)
 		}
 		cfg, e := loadConfig(path)
-		if e != nil || cfg.Token != credential || cfg.Endpoint != server.URL {
+		if e != nil || cfg.Token != credential || cfg.Endpoint != server.URL || cfg.ReportIntervalSeconds != 600 {
 			t.Fatal("config replacement failed", e)
 		}
 		if cfg.EnrollmentID == "" || cfg.EnrollmentID == previousEnrollment {
@@ -67,6 +68,13 @@ func TestEnrollmentAndReplacement(t *testing.T) {
 		}
 	}
 	before, _ := os.ReadFile(path)
+	responseInterval = 601
+	if e := enrollAgent(context.Background(), path, server.URL, strings.Repeat("a", 64), false); e == nil {
+		t.Fatal("accepted an unsupported enrollment interval")
+	}
+	if current, _ := os.ReadFile(path); string(current) != string(before) {
+		t.Fatal("invalid enrollment interval destroyed prior config")
+	}
 	fail = true
 	if e := enrollAgent(context.Background(), path, server.URL, strings.Repeat("a", 64), false); e == nil {
 		t.Fatal("accepted rejected enrollment")

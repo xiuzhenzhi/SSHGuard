@@ -79,7 +79,7 @@ GET /api/v1/health 返回 status、database、phase、version，不返回连接�
 
 ## 配置、审计与趋势
 
-- `POST /servers/:id/enrollment`（admin）：可带 `{"report_interval_seconds":5}`，范围 1–30；设置绑定单次凭证，仅在注册安装时写入。服务器新增 / 编辑拒绝该字段，没有运行时间隔编辑接口。
+- `POST /servers/:id/enrollment`（admin）：可带 `{"report_interval_seconds":5}`，范围 1–600；设置绑定单次凭证，仅在注册安装时写入。服务器新增 / 编辑拒绝该字段，没有运行时间隔编辑接口。
 - 注册响应返回安装 `report_interval_seconds`；HTTP / WebSocket 心跳 ACK 只确认接收，不下发配置。心跳可带实际间隔及最多 16 个有效 `ip_addresses`；无效值拒绝整条心跳。
 - 服务器列表返回安装 / 实际间隔及 JSON 字符串 `ip_addresses`，仅包含公网地址；Agent 在后台探测 NAT 公网出口，主控还使用经过认证的连接来源补充地址。查询结果和边界见 [地理位置](../guides/GEOIP.md)。
 - `GET /ip-allowlist`、`POST /ip-allowlist`、`DELETE /ip-allowlist/:id` 仅 admin；新增 body 为 `{"cidr":"192.0.2.1","notes":"运维出口"}`。支持 IP 或 CIDR，规范化重复 / 数量上限返回 409。白名单只抑制新 SSH 事件告警，不丢弃事件。

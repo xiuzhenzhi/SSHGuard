@@ -276,9 +276,9 @@ func (a *App) summary(c *gin.Context) {
 		return
 	}
 	since := time.Now().UTC().Add(-24 * time.Hour)
-	online := time.Now().UTC().Add(-90 * time.Second)
+	online := time.Now().UTC().Unix()
 	var total, on, rev, events, success int64
-	if e := a.db.Row(c.Request.Context(), `SELECT COUNT(*),COALESCE(SUM(CASE WHEN revoked=false AND last_seen_at>? THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN revoked=true THEN 1 ELSE 0 END),0) FROM servers`, online).Scan(&total, &on, &rev); e != nil {
+	if e := a.db.Row(c.Request.Context(), `SELECT COUNT(*),COALESCE(SUM(CASE WHEN revoked=false AND `+a.freshSQL("last_seen_at", "servers.id")+` THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN revoked=true THEN 1 ELSE 0 END),0) FROM servers`, online).Scan(&total, &on, &rev); e != nil {
 		fail(c, e)
 		return
 	}

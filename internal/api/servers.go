@@ -16,7 +16,7 @@ const serverColumns = `id,name,hostname,distribution,group_name,notes,agent_vers
 func (a *App) servers(c *gin.Context) {
 	q := "%" + c.Query("q") + "%"
 	size, offset := page(c)
-	rows, err := a.db.List(c.Request.Context(), `SELECT `+serverColumns+`,(SELECT public_ip FROM server_network WHERE server_id=servers.id) AS observed_public_ip FROM servers WHERE name LIKE ? OR hostname LIKE ? OR group_name LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?`, time.Now().UTC().Add(-90*time.Second), q, q, q, size+1, offset)
+	rows, err := a.db.List(c.Request.Context(), `SELECT `+strings.Replace(serverColumns, "last_seen_at>?", a.freshSQL("last_seen_at", "servers.id"), 1)+`,(SELECT public_ip FROM server_network WHERE server_id=servers.id) AS observed_public_ip FROM servers WHERE name LIKE ? OR hostname LIKE ? OR group_name LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?`, time.Now().UTC().Unix(), q, q, q, size+1, offset)
 	if err != nil {
 		fail(c, err)
 		return
@@ -32,7 +32,7 @@ func (a *App) servers(c *gin.Context) {
 	ok(c, gin.H{"items": rows, "has_more": more})
 }
 func (a *App) server(c *gin.Context) {
-	rows, e := a.db.List(c.Request.Context(), `SELECT `+serverColumns+`,(SELECT public_ip FROM server_network WHERE server_id=servers.id) AS observed_public_ip FROM servers WHERE id=?`, time.Now().UTC().Add(-90*time.Second), c.Param("id"))
+	rows, e := a.db.List(c.Request.Context(), `SELECT `+strings.Replace(serverColumns, "last_seen_at>?", a.freshSQL("last_seen_at", "servers.id"), 1)+`,(SELECT public_ip FROM server_network WHERE server_id=servers.id) AS observed_public_ip FROM servers WHERE id=?`, time.Now().UTC().Unix(), c.Param("id"))
 	if e != nil {
 		fail(c, e)
 		return
@@ -52,7 +52,7 @@ func (a *App) saveServer(c *gin.Context) {
 		Name     string `json:"name" binding:"max=128"`
 		Group    string `json:"group_name" binding:"max=64"`
 		Notes    string `json:"notes" binding:"max=1024"`
-		Interval *int   `json:"report_interval_seconds" binding:"omitempty,min=1,max=30"`
+		Interval *int   `json:"report_interval_seconds" binding:"omitempty,min=1,max=600"`
 	}
 	if !bind(c, &in) {
 		return
@@ -170,7 +170,7 @@ func linuxAgentCommand(asset, arguments, privilege string) string {
 }
 func (a *App) enrollment(c *gin.Context) {
 	var in struct {
-		Interval *int `json:"report_interval_seconds" binding:"omitempty,min=1,max=30"`
+		Interval *int `json:"report_interval_seconds" binding:"omitempty,min=1,max=600"`
 	}
 	if c.Request.ContentLength != 0 && !bind(c, &in) {
 		return

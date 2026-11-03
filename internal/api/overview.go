@@ -75,7 +75,7 @@ func (a *App) overview(c *gin.Context) {
 		return
 	}
 	var healthy, attention, pending, dead, channels int64
-	if e = a.db.Row(c.Request.Context(), `SELECT COUNT(*) FROM agent_health h JOIN servers s ON s.id=h.server_id WHERE s.revoked=false AND s.last_seen_at>? AND h.collector_state='healthy' AND h.updated_at>? AND h.last_poll_at>?`, now.Add(-90*time.Second), now.Add(-90*time.Second), now.Add(-90*time.Second)).Scan(&healthy); e != nil {
+	if e = a.db.Row(c.Request.Context(), `SELECT COUNT(*) FROM agent_health h JOIN servers s ON s.id=h.server_id WHERE s.revoked=false AND `+a.freshSQL("s.last_seen_at", "s.id")+` AND h.collector_state='healthy' AND `+a.freshSQL("h.updated_at", "s.id")+` AND `+a.freshSQL("h.last_poll_at", "s.id")+``, now.Unix(), now.Unix(), now.Unix()).Scan(&healthy); e != nil {
 		fail(c, e)
 		return
 	}

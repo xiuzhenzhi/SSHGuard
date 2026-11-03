@@ -120,7 +120,7 @@ func enrollAgent(ctx context.Context, path, endpoint, t string, allowHTTP bool) 
 	if e = request(ctx, endpoint, "/api/v1/agent/enroll", "", map[string]string{"token": t, "hostname": host, "distribution": distribution(), "version": version}, &response); e != nil {
 		return e
 	}
-	if !validToken(response.Data.Token) || response.Data.ServerID == "" {
+	if !validToken(response.Data.Token) || response.Data.ServerID == "" || response.Data.ReportIntervalSeconds < 0 || response.Data.ReportIntervalSeconds > 600 {
 		return fmt.Errorf("invalid enrollment response; generate a new command and retry")
 	}
 	response.Data.Endpoint = endpoint
@@ -148,7 +148,7 @@ func loadConfig(path string) (Config, error) {
 	if e = json.Unmarshal(b, &c); e != nil {
 		return c, e
 	}
-	if !validEndpoint(c.Endpoint, c.AllowInsecureHTTP) || !validToken(c.Token) || c.ServerID == "" || c.ReportIntervalSeconds < 0 || c.ReportIntervalSeconds > 30 {
+	if !validEndpoint(c.Endpoint, c.AllowInsecureHTTP) || !validToken(c.Token) || c.ServerID == "" || c.ReportIntervalSeconds < 0 || c.ReportIntervalSeconds > 600 {
 		return c, fmt.Errorf("invalid agent config: valid origin, explicit HTTP opt-in, server_id and token required")
 	}
 	return c, nil
