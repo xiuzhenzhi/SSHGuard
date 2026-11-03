@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '可选：留空时根据当前分支的 GitHub Release 自动递增补丁版本；例如 0.3.2 或 0.4.0-rc.1'
+        description: '可选：留空时根据当前分支的 GitHub Release 自动递增补丁版本；例如 0.3.27 或 0.4.0-rc.1'
         required: false
         type: string
       existing_tag:

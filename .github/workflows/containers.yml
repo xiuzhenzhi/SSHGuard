@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing published Release, e.g. v0.3.19'
+        description: 'Existing published Release, e.g. v0.3.20'
         required: true
         type: string
 permissions:
