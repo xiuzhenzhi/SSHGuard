@@ -20,6 +20,10 @@ const reachable = releases.filter(r => {
   return spawnSync('git', ['merge-base', '--is-ancestor', `refs/tags/${r.tag_name}^{commit}`, 'HEAD']).status === 0;
 }).map(r => r.tag_name);
 const tags = git('tag', '--list').split('\n');
+if (!process.env.REQUESTED_VERSION?.trim() && tags.includes('v' + current) &&
+    !releases.some(r => r.tag_name === 'v' + current)) {
+  throw Error('Current version has an unfinished release; retry its existing_tag instead of skipping a version.');
+}
 const version = selectVersion(process.env.REQUESTED_VERSION || '', current, reachable, tags);
 const tag = 'v' + version;
 if (releases.some(r => r.tag_name === tag)) throw Error('A Release already uses this version.');
