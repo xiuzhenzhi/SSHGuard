@@ -111,8 +111,8 @@ func LoadConfig() (Config, error) {
 	if c.AdminUsername == "" {
 		c.AdminUsername = "admin"
 	}
-	if c.PublicURL == "" && c.AllowInsecureHTTP && c.TLSCertFile == "" {
-		c.SecureCookie = false
+	if c.PublicURL == "" {
+		c.SecureCookie = !c.AllowInsecureHTTP || c.TLSCertFile != ""
 		if c.DatabaseURL == "" {
 			return c, fmt.Errorf("DATABASE_URL required")
 		}

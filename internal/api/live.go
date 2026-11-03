@@ -70,7 +70,7 @@ func (a *App) Shutdown() {
 }
 func (a *App) live(c *gin.Context) {
 	origin := a.browserOrigin(c)
-	if c.GetHeader("Origin") != origin {
+	if !a.validBrowserOrigin(c) {
 		bad(c, 403, "WebSocket Origin 无效")
 		return
 	}

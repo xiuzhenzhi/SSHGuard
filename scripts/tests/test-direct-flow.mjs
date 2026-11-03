@@ -20,7 +20,7 @@ const origin = 'http://127.0.0.1:'+port;
 const token = randomBytes(32).toString('hex');
 const password = randomBytes(20).toString('hex');
 const env = {...process.env, DB_DRIVER:'sqlite', DATABASE_URL:'file:'+join(root,'sshguard.db').replaceAll('\\','/'),
-  PUBLIC_URL:'', ALLOW_INSECURE_HTTP:'true', TLS_CERT_FILE:'', TLS_KEY_FILE:'', WEB_SETUP:'true',
+  PUBLIC_URL:'', ALLOW_INSECURE_HTTP:'true', TRUSTED_PROXY_CIDRS:'none', TLS_CERT_FILE:'', TLS_KEY_FILE:'', WEB_SETUP:'true',
   SETUP_TOKEN:token, SETUP_CONFIG_FILE:join(root,'setup.json'), ENCRYPTION_KEY:randomBytes(32).toString('hex'),
   LISTEN_ADDR:'127.0.0.1:'+port, WEB_DIR:resolve('web/dist'), GIN_MODE:'release'};
 let child, cookie = '';

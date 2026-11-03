@@ -87,13 +87,10 @@ printf '主控已卸载；数据库、/opt/SSHGuard/Server 配置与 Agent 保�
 deploy_platform() (
 umask 077
 direct_origin() {
-    # SSH_CONNECTION contains client IP/port and server IP/port. No external
-    # IP lookup is needed, so offline and private-network installs still work.
-    server_ip=$(printf '%s' "${SSH_CONNECTION:-}" | awk '{print $3}')
+    # Match Komari: display the first address reported by hostname -I.
+    # This is display-only; the service listens on its configured interfaces.
+    server_ip=$(hostname -I 2>/dev/null | awk '{print $1}') || server_ip=''
     case "$server_ip" in ''|*[!A-Fa-f0-9:.]*) server_ip='' ;; esac
-    if [ -z "$server_ip" ]; then
-        server_ip=$(hostname -I 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/){print $i; exit}}') || server_ip=''
-    fi
     server_ip=${server_ip:-127.0.0.1}
     case "$server_ip" in *:*) server_ip="[$server_ip]" ;; esac
     printf 'http://%s:%s' "$server_ip" "$1"
@@ -121,7 +118,12 @@ case "${1:-}" in
         esac
         saved_origin=$(sed -n 's/^PUBLIC_URL="\([^"]*\)"$/\1/p' /opt/SSHGuard/Server/api.env)
         saved_port=$(sed -n 's/^LISTEN_ADDR=".*:\([0-9]*\)"$/\1/p' /opt/SSHGuard/Server/api.env)
-        [ -n "$saved_origin" ] || saved_origin=$(direct_origin "${saved_port:-8080}")
+        if [ -z "$saved_origin" ]; then
+            if grep -Eq '^LISTEN_ADDR="(127\.0\.0\.1|\[::1\]):' /opt/SSHGuard/Server/api.env; then
+                saved_origin="http://127.0.0.1:${saved_port:-8080}"
+                printf '服务仅监听本机；远程使用反代域名，初始化时保留链接中的 #setup=口令部分。\n'
+            else saved_origin=$(direct_origin "${saved_port:-8080}"); fi
+        fi
         if [ "$1" = --setup-link ]; then
             grep -Fq 'WEB_SETUP="true"' /opt/SSHGuard/Server/api.env || die '此安装使用配置文件初始化，请使用原管理员账号登录。'
             # The manifest may select an external database; never modify it.
@@ -308,7 +310,7 @@ else
     if [ -n "$certificate" ] && [ "$proxy_mode" != external ]; then
         [ -f "$certificate" ] && [ -f "$private_key" ] || die 'TLS_CERT and TLS_KEY must exist before installation.'
     fi
-    if [ "$proxy_mode" != standalone ] || [ -n "$certificate" ]; then
+    if [ "$proxy_mode" = managed ] || [ -n "$certificate" ]; then
         if [ -z "$domain" ] && [ -z "$config_file" ]; then prompt 'HTTPS domain: '; domain=$answer; fi
         printf '%s' "$domain" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z0-9-]+$' || die 'DOMAIN required for explicit HTTPS/proxy mode.'
     fi
@@ -330,6 +332,7 @@ else
         if "$builtin_tls"; then public_origin="https://$domain:$app_port"; else public_origin="http://$domain:$app_port"; fi
     fi
     configured_origin=$public_origin
+    if [ "$proxy_mode" = external ] && [ -z "$domain" ]; then configured_origin=''; public_origin="http://SERVER_IP:$app_port"; fi
     if [ "$proxy_mode" = standalone ] && ! "$builtin_tls" && [ -z "$domain" ]; then configured_origin=''; public_origin="http://SERVER_IP:$app_port"; fi
     driver=${driver:-sqlite}
     case "$driver" in
@@ -384,7 +387,7 @@ else
     touch /opt/SSHGuard/Server/deploy-managed
     unset dsn admin_password
 fi
-if [ -n "$public_origin" ] && [ "$public_origin" != "http://SERVER_IP:$app_port" ]; then
+if [ "$proxy_mode" = managed ]; then
     printf '%s' "$domain" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z0-9-]+$' || die 'Invalid managed PUBLIC_URL.'
 fi
 [ -n "$public_origin" ] || public_origin="http://SERVER_IP:$app_port"
@@ -516,7 +519,7 @@ ready=false
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
     if "$builtin_tls"; then
         health=$(curl -fsS --noproxy '*' --max-time 3 --resolve "$domain:$app_port:127.0.0.1" --cacert /opt/SSHGuard/Server/tls/fullchain.pem "$public_origin/api/v1/health" 2>/dev/null) || health=''
-    else health=$(curl -fsS --max-time 3 "http://127.0.0.1:$app_port/api/v1/health" 2>/dev/null) || health=''; fi
+    else health=$(curl -fsS --noproxy '*' --max-time 3 "http://127.0.0.1:$app_port/api/v1/health" 2>/dev/null) || health=''; fi
     if printf '%s' "$health" | grep -Fq "\"version\":\"$version\""; then ready=true; break; fi
     sleep 2
 done
@@ -527,13 +530,20 @@ if [ "$proxy_mode" = managed ]; then
 fi
 switched=false
 if [ "$public_origin" = "http://SERVER_IP:$app_port" ]; then
-    public_origin=$(direct_origin "$app_port")
+    if [ "$proxy_mode" = external ]; then public_origin="http://127.0.0.1:$app_port"
+    else public_origin=$(direct_origin "$app_port"); fi
 fi
 if [ -n "$backup" ]; then
     remove_release_payload "$backup" || printf '  旧目录含额外文件或无法清理，已保留：%s\n' "$backup" >&2
 fi
 if [ "$mode" = update ]; then printf '\n更新完成 · SSHGuard %s\n访问地址：%s\n' "$version" "$public_origin"
 else printf '\n安装完成 · SSHGuard %s\n访问地址：%s\n' "$version" "$public_origin"; fi
+actual_listen=$(sed -n 's/^LISTEN_ADDR="\([^"]*\)"$/\1/p' /opt/SSHGuard/Server/api.env)
+printf '实际监听：%s\n' "$actual_listen"
+case "$actual_listen" in
+    127.0.0.1:*|'[::1]:'*) printf '当前端口仅供本机访问，请通过同机反代域名打开；机器 IP + 此端口不能直接访问。\n' ;;
+    *) printf 'IP + 端口可经对应网卡访问；若外部不通，请检查防火墙、安全组和已有映射。\n' ;;
+esac
 if grep -Fq '"status":"setup_required"' <<EOF
 $health
 EOF

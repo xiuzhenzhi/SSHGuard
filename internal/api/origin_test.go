@@ -7,6 +7,34 @@ import (
 	"testing"
 )
 
+func TestAutomaticProxyOrigin(t *testing.T) {
+	for _, tc := range []struct{ name, peer, proto, want string }{
+		{"local HTTPS", "127.0.0.1:5000", "https", "https://guard.example.com:8443"},
+		{"IPv6 proxy", "[::1]:5000", "https", "https://guard.example.com:8443"},
+		{"untrusted peer", "192.0.2.1:5000", "https", "http://guard.example.com:8443"},
+		{"ambiguous protocol", "127.0.0.1:5000", "https,http", "http://guard.example.com:8443"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "http://guard.example.com:8443/api/v1/auth/login", nil)
+			c.Request.RemoteAddr = tc.peer
+			c.Request.Header.Set("X-Forwarded-Proto", tc.proto)
+			c.Request.Header.Set("X-Forwarded-Host", "attacker.example")
+			c.Request.Header.Set("Origin", "https://attacker.example")
+			a := &App{cfg: Config{AllowInsecureHTTP: true, TrustedProxyCIDRs: []string{"127.0.0.1/32", "::1/128"}}}
+			if got := a.browserOrigin(c); got != tc.want {
+				t.Fatalf("origin = %s, want %s", got, tc.want)
+			}
+			if got, valid := a.agentOrigin(c); !valid || got != tc.want {
+				t.Fatalf("agent origin = %s (%v)", got, valid)
+			}
+			if a.secureCookie(c) != strings.HasPrefix(tc.want, "https://") {
+				t.Fatal("cookie security did not follow external protocol")
+			}
+		})
+	}
+}
+
 func TestDirectOriginWithoutDomain(t *testing.T) {
 	t.Setenv("ENCRYPTION_KEY", strings.Repeat("ab", 32))
 	t.Setenv("DATABASE_URL", "file:test.db")
@@ -37,8 +65,8 @@ func TestDirectOriginWithoutDomain(t *testing.T) {
 		t.Fatal("configured reverse proxy origin ignored")
 	}
 	t.Setenv("ALLOW_INSECURE_HTTP", "")
-	if _, err := LoadConfig(); err == nil {
-		t.Fatal("implicit insecure mode allowed")
+	if secure, err := LoadConfig(); err != nil || !secure.SecureCookie {
+		t.Fatal("automatic HTTPS configuration must use secure cookies", err)
 	}
 }
 

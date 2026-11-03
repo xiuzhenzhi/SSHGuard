@@ -81,6 +81,31 @@ func TestSetupAuthorizationAndCompletion(t *testing.T) {
 	}
 }
 
+func TestSetupBehindProxyWithoutConfiguredDomain(t *testing.T) {
+	cfg := Config{SetupFile: filepath.Join(t.TempDir(), "setup.json"), SetupToken: strings.Repeat("b", 64), TrustedProxyCIDRs: []string{"127.0.0.1/32"}}
+	router := NewSetup(cfg).Router()
+	for _, tc := range []struct {
+		peer, origin string
+		status       int
+	}{
+		{"127.0.0.1:5000", "https://evil.example", 403},
+		{"192.0.2.1:5000", "http://guard.example:8443", 403},
+		{"192.0.2.1:5000", "https://guard.example:8443", 403},
+		{"127.0.0.1:5000", "https://guard.example:8443", 200},
+	} {
+		req := httptest.NewRequest("POST", "http://guard.example:8443/api/v1/setup/complete", strings.NewReader(`{"driver":"sqlite","username":"admin","password":"test-password-12345"}`))
+		req.RemoteAddr = tc.peer
+		req.Header.Set("Origin", tc.origin)
+		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Header.Set("X-Setup-Token", cfg.SetupToken)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != tc.status {
+			t.Fatalf("proxy setup: got %d, want %d: %s", w.Code, tc.status, w.Body)
+		}
+	}
+}
+
 func TestSetupRejectsExistingDatabase(t *testing.T) {
 	cfg := Config{SetupFile: filepath.Join(t.TempDir(), "setup.json")}
 	record, err := (setupInput{Driver: "sqlite"}).connection(cfg)

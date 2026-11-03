@@ -151,7 +151,7 @@ func (s *Setup) Router() *gin.Engine {
 	r.GET("/api/v1/health", func(c *gin.Context) { ok(c, gin.H{"status": "setup_required", "version": Version}) })
 	r.GET("/api/v1/setup/status", func(c *gin.Context) { s.mu.Lock(); defer s.mu.Unlock(); ok(c, gin.H{"required": !s.completed}) })
 	auth := func(c *gin.Context) {
-		if c.GetHeader("Origin") != a.browserOrigin(c) {
+		if !a.validBrowserOrigin(c) {
 			bad(c, 403, "请求来源不匹配")
 			return
 		}

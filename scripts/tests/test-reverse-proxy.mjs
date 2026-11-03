@@ -57,8 +57,8 @@ try{
     execFileSync(nginxPath,['-p',posix(root)+'/', '-c',posix(check),'-t'],{stdio:'pipe',windowsHide:true});
   }
   execFileSync(nginxPath,['-p',posix(root)+'/', '-c',posix(config),'-t'],{stdio:'pipe',windowsHide:true});
-  launch(apiPath,[],{...process.env,DB_DRIVER:'sqlite',DATABASE_URL:'file:'+posix(join(root,'sshguard.db')),PUBLIC_URL:origin,
-    ALLOW_INSECURE_HTTP:'false',TLS_CERT_FILE:'',TLS_KEY_FILE:'',WEB_SETUP:'true',SETUP_TOKEN:setupToken,SETUP_CONFIG_FILE:join(root,'setup.json'),
+  launch(apiPath,[],{...process.env,DB_DRIVER:'sqlite',DATABASE_URL:'file:'+posix(join(root,'sshguard.db')),PUBLIC_URL:process.env.SSHGUARD_TEST_FIXED_ORIGIN === 'true' ? origin : '',
+    ALLOW_INSECURE_HTTP:'false',TRUSTED_PROXY_CIDRS:'127.0.0.1/32,::1/128',TLS_CERT_FILE:'',TLS_KEY_FILE:'',WEB_SETUP:'true',SETUP_TOKEN:setupToken,SETUP_CONFIG_FILE:join(root,'setup.json'),
     ENCRYPTION_KEY:randomBytes(32).toString('hex'),LISTEN_ADDR:'127.0.0.1:'+upstream,WEB_DIR:webDir,GIN_MODE:'release'});
   launch(nginxPath,['-p',posix(root)+'/', '-c',posix(config),'-g','daemon off; master_process off;']);
   await ready();

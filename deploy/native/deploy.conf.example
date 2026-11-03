@@ -1,5 +1,5 @@
 # Raw KEY=value, no shell quotes or expansion. chmod 600 before --config.
-# DOMAIN=guard.example.com  # Only needed for explicit HTTPS/proxy mode.
+# DOMAIN=guard.example.com  # Optional for external proxy; required for managed or built-in TLS.
 # standalone: built-in web/API on APP_PORT; no Nginx required.
 # external: existing Nginx/OpenResty/panel/proxy; no installation, reload or TLS changes.
 # managed: script manages the system Nginx site and HTTPS (fresh servers).

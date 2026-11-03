@@ -72,7 +72,7 @@ func (a *App) Router() *gin.Engine {
 	r.GET("/api/v1/setup/status", func(c *gin.Context) { ok(c, gin.H{"required": false}) })
 	// Cookie mutations require exact Origin; CLI clients must send Origin too.
 	origin := func(c *gin.Context) {
-		if c.Request.Method != "GET" && c.Request.Header.Get("Origin") != a.browserOrigin(c) {
+		if c.Request.Method != "GET" && !a.validBrowserOrigin(c) {
 			bad(c, 403, "Origin 校验失败")
 			return
 		}

@@ -143,7 +143,7 @@ func (a *App) login(c *gin.Context) {
 		return
 	}
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("sshguard_session", t, 43200, "/", "", a.cfg.SecureCookie, true)
+	c.SetCookie("sshguard_session", t, 43200, "/", "", a.secureCookie(c), true)
 	ok(c, u)
 }
 func (a *App) changePassword(c *gin.Context) {
@@ -192,7 +192,7 @@ func (a *App) changePassword(c *gin.Context) {
 		return
 	}
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("sshguard_session", "", -1, "/", "", a.cfg.SecureCookie, true)
+	c.SetCookie("sshguard_session", "", -1, "/", "", a.secureCookie(c), true)
 	ok(c, gin.H{"login_required": true})
 }
 func (a *App) session(c *gin.Context) {
@@ -240,7 +240,7 @@ func (a *App) logout(c *gin.Context) {
 		return
 	}
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("sshguard_session", "", -1, "/", "", a.cfg.SecureCookie, true)
+	c.SetCookie("sshguard_session", "", -1, "/", "", a.secureCookie(c), true)
 	ok(c, gin.H{"logged_out": true})
 }
 func (a *App) createUser(c *gin.Context) {

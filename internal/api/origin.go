@@ -1,13 +1,15 @@
 package api
 
 import (
+	"net"
 	"sshguard/internal/originurl"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Direct HTTP uses the actual request host, never untrusted proxy headers.
-// HTTPS reverse proxies must configure PUBLIC_URL explicitly.
+// Preserve the browser Host. Only a configured trusted peer may supply the
+// external scheme; forwarded hosts and browser Origin never select the origin.
 func (a *App) browserOrigin(c *gin.Context) string {
 	if a.cfg.PublicURL != "" {
 		return a.cfg.PublicURL
@@ -15,12 +17,49 @@ func (a *App) browserOrigin(c *gin.Context) string {
 	scheme := "http"
 	if c.Request.TLS != nil {
 		scheme = "https"
+	} else if a.trustedProxy(c) {
+		if proto := c.GetHeader("X-Forwarded-Proto"); proto == "https" || proto == "http" {
+			scheme = proto
+		}
 	}
-	return scheme + "://" + c.Request.Host
+	u, err := originurl.Parse(scheme + "://" + c.Request.Host)
+	if err != nil {
+		return "invalid-origin"
+	}
+	return originurl.Canonical(u)
 }
 
-// Use the address the administrator actually opened in direct mode. Forwarded
-// headers never choose where an Agent downloads code or sends credentials.
+func (a *App) trustedProxy(c *gin.Context) bool {
+	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	for _, cidr := range a.cfg.TrustedProxyCIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err == nil && network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) secureCookie(c *gin.Context) bool {
+	return a.cfg.SecureCookie || strings.HasPrefix(a.browserOrigin(c), "https://")
+}
+
+func (a *App) validBrowserOrigin(c *gin.Context) bool {
+	origin := a.browserOrigin(c)
+	u, err := originurl.Parse(origin)
+	if err != nil || c.GetHeader("Origin") != origin {
+		return false
+	}
+	// Automatic HTTPS-only mode must reject plaintext setup/login as well as
+	// Agent commands. A Secure cookie alone does not protect submitted passwords.
+	return a.cfg.PublicURL != "" || u.Scheme == "https" || a.cfg.AllowInsecureHTTP
+}
+
+// Use the same external origin for browser requests and generated Agent commands.
 func (a *App) agentOrigin(c *gin.Context) (string, bool) {
 	origin := a.browserOrigin(c)
 	u, err := originurl.Parse(origin)

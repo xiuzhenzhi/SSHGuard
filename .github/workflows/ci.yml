@@ -398,6 +398,7 @@ jobs:
           mkdir -p .local/proxy
           openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=localhost -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' -keyout .local/proxy/key.pem -out .local/proxy/cert.pem
           NODE_EXTRA_CA_CERTS="$PWD/.local/proxy/cert.pem" node .local/proxy-verifier/scripts/tests/test-reverse-proxy.mjs dist/sshguard-linux-amd64/sshguard-api "$(command -v nginx)" .local/proxy/cert.pem .local/proxy/key.pem
+          SSHGUARD_TEST_FIXED_ORIGIN=true NODE_EXTRA_CA_CERTS="$PWD/.local/proxy/cert.pem" node .local/proxy-verifier/scripts/tests/test-reverse-proxy.mjs dist/sshguard-linux-amd64/sshguard-api "$(command -v nginx)" .local/proxy/cert.pem .local/proxy/key.pem
   artifacts:
     name: Verified release assets
     needs: [build, native, scope]

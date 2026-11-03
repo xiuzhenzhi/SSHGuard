@@ -24,10 +24,12 @@ location ^~ / {
 }
 ```
 
-3. 在 `/opt/SSHGuard/Server/api.env` 填入实际域名：
+3. 默认安装无需再填写域名。主控通过反代传递的 Host 和协议自动识别访问地址，登录、WebSocket 和 Agent 命令使用同一地址。
+
+旧安装若填写过 `PUBLIC_URL`，它仍优先作为固定地址；要启用自动识别，将 `/opt/SSHGuard/Server/api.env` 改为：
 
 ```ini
-PUBLIC_URL="https://guard.example.com"
+PUBLIC_URL=""
 LISTEN_ADDR="127.0.0.1:8080"
 ALLOW_INSECURE_HTTP="false"
 ```
@@ -41,7 +43,7 @@ curl -fsS https://guard.example.com/api/v1/health
 
 ### 自定义端口提示
 
-主控端口不是 8080 时修改 `proxy_pass`。外部使用 8443 等端口时，`PUBLIC_URL` 也要包含该端口。
+主控端口不是 8080 时修改 `proxy_pass`。外部使用 8443 等端口时，保留 `Host $http_host` 即可自动识别。若显式指定 `PUBLIC_URL`，它也必须包含外部端口。
 
 ### WebSocket 与超时
 
@@ -68,3 +70,11 @@ TRUSTED_PROXY_CIDRS="172.28.0.2/32"
 ```
 
 填 `none` 可关闭转发头信任。配置后重启 API，核对操作审计中的来源 IP。
+
+## 访问失败的定位
+
+安装脚本和 Komari 一样，显示 `hostname -I` 的第一个地址。这个地址仅用于输出链接，不决定监听或端口映射。默认原生安装监听 `0.0.0.0:8080`；外部反代模式监听 `127.0.0.1:8080`，只供同机代理连接。Compose 默认向宿主机发布 80/443，不发布 API 的 8080。
+
+在服务器检查 `ss -lntp`、`curl -i http://127.0.0.1:8080/api/v1/health`，再比较实际访问地址下同一路径的响应。默认原生安装直接运行服务，不会创建 NAT 映射；云安全组和已有端口映射由服务器环境决定。
+
+如果响应是 JSON 并提示来源校验失败，检查旧的 `PUBLIC_URL`，自动模式应留空，同时保留 Host 和协议转发头。如果连首页都显示 Nginx / OpenResty 的 403 页面，检查站点根路径是否已反代，以及面板的访问限制。
