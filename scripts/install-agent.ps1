@@ -6,7 +6,7 @@ param(
     [switch]$Update,
     [switch]$AllowInsecureHttp
 )
-$ReleaseVersion = '0.3.23'
+$ReleaseVersion = '0.3.20'
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Write-Output "`nSSHGuard Agent · 安装与更新"
@@ -20,7 +20,7 @@ if ($origin.Scheme -eq 'http') { Write-Output '[提示] 当前使用 HTTP，请�
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $targetVersion = if ($env:SSHGUARD_EXPECTED_VERSION) { $env:SSHGUARD_EXPECTED_VERSION } else { $ReleaseVersion }
 if ($targetVersion.Length -gt 32 -or $targetVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$') { throw '版本号无效，请重新复制控制台安装命令。' }
-$artifactBase = "https://github.com/xiuzhenzhi/SSHGuard/releases/download/v$targetVersion"
+$artifactBase = "https://github.com/xiuzhenzhi/SSHGuard/releases/download/agent-v$targetVersion"
 $artifactProtocol = '=https'
 if ($env:SSHGUARD_TEST_DOWNLOADS -eq 'true') {
     if ($env:GITHUB_ACTIONS -ne 'true' -or $origin.Host -notin @('localhost','127.0.0.1','guard.sshguard.test')) { throw 'Test download source requires the disposable CI environment.' }

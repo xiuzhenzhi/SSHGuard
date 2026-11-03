@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { agentChanged } from './agent-version.mjs';
+import { agentChanged, agentTag } from './agent-version.mjs';
 import { parseVersion, selectVersion } from './release-version.mjs';
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
@@ -25,7 +25,10 @@ const tag = 'v' + version;
 if (releases.some(r => r.tag_name === tag)) throw Error('A Release already uses this version.');
 
 const oldAgent = existsSync('AGENT_VERSION') ? readFileSync('AGENT_VERSION','utf8').trim() : current;
-const agentVersion = !existsSync('AGENT_VERSION') || agentChanged(oldAgent) ? version : oldAgent;
+const changed = !existsSync('AGENT_VERSION') || agentChanged(oldAgent);
+const [agentMajor, agentMinor, agentPatch] = parseVersion(oldAgent).numbers;
+const agentVersion = changed ? `${agentMajor}.${agentMinor}.${agentPatch + 1}` : oldAgent;
+if (changed && tags.includes(agentTag(agentVersion))) throw Error('Next Agent tag already exists; retry that release instead of skipping a version.');
 writeFileSync('AGENT_VERSION', agentVersion + '\n');
 writeFileSync('VERSION', version + '\n');
 for (const [file, pattern, replacement] of [

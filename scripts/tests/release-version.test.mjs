@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseVersion, selectVersion } from '../release/release-version.mjs';
 
-test('automatic patch increment follows branch releases and skips reserved tags', () => {
-  assert.equal(selectVersion('', '0.3.1', ['v0.3.2', 'v1.0.0-rc.1'], ['v0.3.3']), '0.3.4');
+test('automatic patch increment never skips reserved tags', () => {
+  assert.throws(() => selectVersion('', '0.3.1', ['v0.3.2', 'v1.0.0-rc.1'], ['v0.3.3']), /instead of skipping/);
   assert.equal(selectVersion('', '0.4.0', ['v0.3.1'], []), '0.4.1');
   assert.equal(selectVersion('', '0.3.1', [], []), '0.3.2');
 });

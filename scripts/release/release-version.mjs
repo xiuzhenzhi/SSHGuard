@@ -28,10 +28,8 @@ export function selectVersion(requested, current, released, tags) {
     if (!candidate.prerelease && compare(candidate, base) > 0) base = candidate;
   }
   let [major, minor, patch] = base.numbers;
-  let version;
-  do {
-    version = `${major}.${minor}.${++patch}`;
-    parseVersion(version);
-  } while (existing.has('v' + version));
+  const version = `${major}.${minor}.${patch + 1}`;
+  parseVersion(version);
+  if (existing.has('v' + version)) throw Error('Next version tag already exists; retry that release instead of skipping a version.');
   return version;
 }

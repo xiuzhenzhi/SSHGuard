@@ -2,7 +2,7 @@
 # Ubuntu/Debian: systemd. Alpine: OpenRC. No bash, Python, Node or container.
 set -eu
 umask 077
-RELEASE_VERSION='0.3.23'
+RELEASE_VERSION='0.3.20'
 die() { printf '[错误] %s\n' "$*" >&2; exit 1; }
 case "${1:-}" in
     --help|-h) printf '安装：sudo sh install-agent.sh ORIGIN ONE_TIME_TOKEN [--allow-insecure-http]\n更新：sudo sh install-agent.sh ORIGIN --update [--allow-insecure-http]\n离线卸载：sudo sh /opt/SSHGuard/Agent/sshguard/uninstall-agent.sh\n'; exit 0 ;;
@@ -24,7 +24,7 @@ case "$endpoint" in
 esac
 release_version=${SSHGUARD_EXPECTED_VERSION:-$RELEASE_VERSION}
 [ "${#release_version}" -le 32 ] && printf '%s' "$release_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$' || die '版本号无效，请重新复制控制台安装命令。'
-artifact_base="https://github.com/xiuzhenzhi/SSHGuard/releases/download/v$release_version"
+artifact_base="https://github.com/xiuzhenzhi/SSHGuard/releases/download/agent-v$release_version"
 artifact_proto='=https'
 if [ "${SSHGUARD_TEST_DOWNLOADS:-}" = true ]; then
     [ "${GITHUB_ACTIONS:-}" = true ] || die 'Test download source requires the disposable CI environment.'

@@ -66,7 +66,7 @@ node scripts/build/package-release.mjs
 
 主控版本由 `VERSION` 管理，Agent 版本由 `AGENT_VERSION` 管理，两者允许不同。自动准备版本比较上次 Agent 发布标签与当前代码：Agent 代码、共享网络工具、Go 依赖、安装/卸载脚本或 Agent 构建逻辑发生变化才更新 Agent 版本。缺失历史时采取完整构建。纯主控、前端或文档变化不会推进 Agent 版本。
 
-主控构建读取两个版本；安装链接、远程更新目标和「已是当前版本」判断使用 Agent 版本。主控与 Agent 版本不同时，打包从既有 Agent Release 下载四个平台产物并验证校验和与架构，不重复交叉编译。下载或校验失败会中止发布，不会静默替换产物。本地复用需要 Git 标签历史及 `gh`。Web Docker 镜像仅构建前端，Agent 官方安装命令直接访问其 GitHub Release。
+主控构建读取两个版本；安装链接、远程更新目标和「已是当前版本」判断使用 Agent 版本。未变化的 Agent 从对应 `agent-v*` Release 下载四个平台产物并验证校验和与架构，不重复交叉编译。下载或校验失败会中止发布。本地复用需要 Git 标签历史及 `gh`。Web Docker 镜像仅构建前端，Agent 官方安装命令直接访问其 GitHub Release。
 
 | 变化范围 | 常规 CI |
 |---|---|

@@ -131,6 +131,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.verify.outputs.tag }}
         run: |
+          node scripts/release/publish-agent.mjs
           flags=()
           if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
           gh release create "$RELEASE_TAG" dist/release/* --verify-tag "${flags[@]}" \

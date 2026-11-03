@@ -143,7 +143,17 @@ func shellQuote(s string) string      { return "'" + strings.ReplaceAll(s, "'", 
 func powershellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 
 func agentAsset(name string) string {
-	return "https://github.com/xiuzhenzhi/SSHGuard/releases/download/" + url.PathEscape("v"+AgentVersion) + "/" + url.PathEscape(name)
+	prefix := "agent-v"
+	if legacyAgentUpdater(AgentVersion) {
+		prefix = "v"
+	}
+	return "https://github.com/xiuzhenzhi/SSHGuard/releases/download/" + url.PathEscape(prefix+AgentVersion) + "/" + url.PathEscape(name)
+}
+
+func legacyAgentUpdater(version string) bool {
+	var major, minor, patch int
+	n, _ := fmt.Sscanf(strings.TrimPrefix(version, "v"), "%d.%d.%d", &major, &minor, &patch)
+	return n == 3 && major == 0 && (minor < 3 || (minor == 3 && patch <= 20))
 }
 func installCommands(origin, t string) map[string]string {
 	linuxOption, windowsOption := "", ""

@@ -67,7 +67,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   let base = process.env.PR_BASE_SHA || process.env.BEFORE_SHA || '';
   const head = process.env.SOURCE_SHA || process.env.GITHUB_SHA || '';
   if (process.env.SELECTIVE_RELEASE === 'true') {
-    try { base = execFileSync('git',['rev-list','-n','1',execFileSync('git',['describe','--tags','--abbrev=0',head+'^'],{encoding:'utf8'}).trim()],{encoding:'utf8'}).trim(); } catch { base=''; }
+    try { base = execFileSync('git',['rev-list','-n','1',execFileSync('git',['describe','--tags','--match','v[0-9]*','--abbrev=0',head+'^'],{encoding:'utf8'}).trim()],{encoding:'utf8'}).trim(); } catch { base=''; }
   } else if(process.env.GITHUB_EVENT_NAME==='push' && process.env.GITHUB_REF_TYPE==='branch') {
     // A newer push can cancel its predecessor. Compare against a successful CI,
     // not the immediately preceding (possibly unverified) commit.

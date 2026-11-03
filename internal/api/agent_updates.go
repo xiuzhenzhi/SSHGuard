@@ -23,7 +23,7 @@ func (a *App) queueAgentUpdate(c *gin.Context) {
 		if e := tx.QueryRowContext(c.Request.Context(), a.db.Bind(`SELECT agent_version FROM servers WHERE id=? AND revoked=false FOR UPDATE`), id).Scan(&current); e != nil {
 			return e
 		}
-		if current == AgentVersion {
+		if current == AgentVersion || legacyAgentUpdater(current) {
 			return errUpdateUnavailable
 		}
 		var seen sql.NullTime
