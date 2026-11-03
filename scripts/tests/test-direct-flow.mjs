@@ -101,6 +101,8 @@ try {
   assert.equal(updates.endpoint,origin);
   assert(updates.commands.windows.includes('-Update -AllowInsecureHttp'));
   await api('/agent/update/poll','POST',{},200,agentHeaders);
+  await api('/servers/'+id+'/update','POST',{},409);
+  await api('/agent/heartbeat','POST',{version:'0.3.21-test',collector_state:'healthy'},200,agentHeaders);
   await api('/servers/'+id+'/update','POST',{});
   assert((await api('/agent/update/poll','POST',{},200,agentHeaders)).update.id);
   const manifest = readFileSync(env.SETUP_CONFIG_FILE,'utf8');

@@ -184,11 +184,18 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          path: .local/compatibility-validator
+          sparse-checkout: scripts/tests/test-direct-flow.mjs
+          sparse-checkout-cone-mode: false
       - run: |
           mkdir -p .local/direct-flow
           go build -o .local/direct-flow/api ./cmd/api
           go build -o .local/direct-flow/agent ./cmd/agent
-          node scripts/tests/test-direct-flow.mjs .local/direct-flow/api .local/direct-flow/agent
+          node .local/compatibility-validator/scripts/tests/test-direct-flow.mjs .local/direct-flow/api .local/direct-flow/agent
   postgres:
     name: 数据库 CI / PostgreSQL
     needs: scope
