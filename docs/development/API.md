@@ -108,6 +108,3 @@ GET /api/v1/health 返回 status、database、phase、version，不返回连接�
 
 写入请求遵循会话、管理员权限和 Origin 校验，操作写入审计。维护失败信息不泄漏数据库连接凭证。
 
-## 服务器自动命名
-
-添加或编辑服务器时名称可留空，主控会生成 `服务器-xxxxxxxx` 格式的名称。填写的名称会去除首尾空白，最长 128 个字符。`POST /api/v1/servers` 和 `PATCH /api/v1/servers/:id` 的返回数据包含 `id` 和最终 `name`。

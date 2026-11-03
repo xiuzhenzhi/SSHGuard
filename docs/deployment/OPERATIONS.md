@@ -73,4 +73,3 @@ mysql -h 127.0.0.1 -u sshguard --password sshguard_restore < sshguard-backup.sql
 
 在控制台修改密码，修改后需重新登录。`ADMIN_PASSWORD` 仅用于初始化，不会重置已有账号。
 
-更新时保留 `ENCRYPTION_KEY`；丢失密钥后无法解密通知渠道和其他已保存凭证。

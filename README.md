@@ -32,10 +32,4 @@ sh sshguard.sh --update
 
 ## 文档
 
-文档适用于 v0.3.21 及以上版本。
-
 [在线文档](https://xiuzhenzhi.github.io/SSHGuard/)
-
-[文档总览](docs/README.md) · [安装与管理](docs/guides/QUICKSTART.md) · [Compose 安装](docs/deployment/INSTALL-COMPOSE.md) · [Agent](docs/guides/AGENTS.md) · [反代与 HTTPS](docs/deployment/REVERSE-PROXY.md) · [告警配置](docs/guides/ALERTING.md) · [登录防护](docs/guides/LOGIN-SECURITY.md) · [数据库维护](docs/guides/DATABASE.md)
-
-[更新日志](CHANGELOG.md) · [下载版本](https://github.com/xiuzhenzhi/SSHGuard/releases) · [参与贡献](CONTRIBUTING.md) · [安全反馈](SECURITY.md)
