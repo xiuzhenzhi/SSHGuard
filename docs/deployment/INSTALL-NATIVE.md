@@ -7,7 +7,7 @@
 ## 下载发布包
 
 ```sh
-gh release download v0.3.24 --repo xiuzhenzhi/SSHGuard --pattern sshguard-linux-amd64.tar.gz --pattern SHA256SUMS
+gh release download v0.3.25 --repo xiuzhenzhi/SSHGuard --pattern sshguard-linux-amd64.tar.gz --pattern SHA256SUMS
 sha256sum --ignore-missing -c SHA256SUMS
 tar -xzf sshguard-linux-amd64.tar.gz
 cd sshguard-linux-amd64
