@@ -107,4 +107,3 @@ Linux 的 journal 读取进程用完即退出，不额外常驻；文件采集�
 ### Alpine 采集异常修复
 
 重新执行新版安装命令，可修复标准 BusyBox syslog 的认证日志权限。使用自定义 syslog 或 `log_file` 时，确认 Agent 能读取相应文件。
-

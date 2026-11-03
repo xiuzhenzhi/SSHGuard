@@ -107,4 +107,3 @@ GET /api/v1/health 返回 status、database、phase、version，不返回连接�
 - `POST /api/v1/settings/database/reclaim`：传入 `{ "confirm": true }`，SQLite / PostgreSQL / MySQL 根据类型执行维护，返回 202 后轮询 GET 接口查看 `maintenance.state`。状态包括 idle、running、completed、failed；重复运行返回 409。
 
 写入请求遵循会话、管理员权限和 Origin 校验，操作写入审计。维护失败信息不泄漏数据库连接凭证。
-
