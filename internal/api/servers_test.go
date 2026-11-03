@@ -3,12 +3,36 @@ package api
 import (
 	"context"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+func testServerGroup(t *testing.T, app *App, session string, call func(string, string, any, string, string, bool, int) (map[string]any, *httptest.ResponseRecorder)) {
+	t.Helper()
+	result, _ := call("POST", "/servers", map[string]string{"name": "group fixture", "notes": "preserve notes", "group_name": "old"}, session, "", true, 200)
+	id := result["data"].(map[string]any)["id"].(string)
+	path := "/servers/" + id + "/group"
+	call("PATCH", path, map[string]string{"group_name": "new"}, "", "", true, 401)
+	call("PATCH", path, map[string]string{"group_name": "new"}, session, "", false, 403)
+	call("PATCH", path, map[string]string{}, session, "", true, 400)
+	call("PATCH", path, map[string]string{"group_name": strings.Repeat("x", 65)}, session, "", true, 400)
+	for _, group := range []string{"new", ""} {
+		call("PATCH", path, map[string]string{"group_name": group}, session, "", true, 200)
+		row, _ := call("GET", "/servers/"+id, nil, session, "", false, 200)
+		data := row["data"].(map[string]any)
+		if data["group_name"] != group || data["name"] != "group fixture" || data["notes"] != "preserve notes" {
+			t.Fatal("group update changed unrelated fields", data)
+		}
+	}
+	var count int
+	if err := app.db.Row(context.Background(), `SELECT COUNT(*) FROM audit_logs WHERE action='server.group.update' AND target=?`, id).Scan(&count); err != nil || count != 2 {
+		t.Fatal("missing group audit", count, err)
+	}
+}
 
 func testServerDeletion(t *testing.T, app *App, session string, call func(string, string, any, string, string, bool, int) (map[string]any, *httptest.ResponseRecorder)) {
 	t.Helper()

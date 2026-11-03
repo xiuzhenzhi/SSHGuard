@@ -95,6 +95,29 @@ func (a *App) saveServer(c *gin.Context) {
 	}
 	ok(c, gin.H{"id": id, "name": in.Name})
 }
+func (a *App) saveServerGroup(c *gin.Context) {
+	var in struct {
+		Group *string `json:"group_name" binding:"required,max=64"`
+	}
+	if !bind(c, &in) {
+		return
+	}
+	id := c.Param("id")
+	err := a.mutate(c, c.MustGet("user").(User).ID, "server.group.update", id, func(tx *sql.Tx) error {
+		var existing string
+		if err := tx.QueryRowContext(c.Request.Context(), a.db.Bind(`SELECT id FROM servers WHERE id=? FOR UPDATE`), id).Scan(&existing); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(c.Request.Context(), a.db.Bind(`UPDATE servers SET group_name=? WHERE id=?`), strings.TrimSpace(*in.Group), id)
+		return err
+	})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	ok(c, gin.H{"id": id})
+}
+
 func (a *App) deleteServer(c *gin.Context) {
 	id := c.Param("id")
 	err := a.mutate(c, c.MustGet("user").(User).ID, "server.delete", id, func(tx *sql.Tx) error {

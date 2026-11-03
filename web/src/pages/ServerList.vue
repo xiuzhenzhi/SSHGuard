@@ -1,16 +1,25 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ElTable, ElTableColumn, ElButton, ElDialog, ElTooltip } from 'element-plus';
 import { DocumentCopy, Edit, List, Download } from '@element-plus/icons-vue';
 import 'element-plus/es/components/tooltip/style/css';
 import AgentMaintenance from '../components/AgentMaintenance.vue';
+import ServerBatch from '../components/ServerBatch.vue';
+import 'element-plus/es/components/checkbox/style/css';
 import CountryFlag from '../components/CountryFlag.vue';
 import { copyText } from '../lib/clipboard';
 import { ElMessage } from 'element-plus';
 type Row = Record<string, any>;
-const props=defineProps<{rows: Row[], admin: boolean, writer: boolean, busy: boolean}>();
+const props=defineProps<{rows: Row[], admin: boolean, writer: boolean, busy: boolean, selectionKey: string}>();
 const emit = defineEmits<{history:[row:Row], edit:[row:Row], enroll:[row:Row], update:[row:Row], revoke:[row:Row], remove:[row:Row], changed:[]}>();
 const selectedID = ref('');
+const table=ref<{clearSelection:()=>void}>();
+const checked=ref<Row[]>([]),batchBusy=ref(false);
+const busy=computed(()=>props.busy||batchBusy.value);
+const checkedRows=computed(()=>props.rows.filter(row=>checked.value.some(item=>item.id===row.id)));
+function clearSelection(){table.value?.clearSelection();checked.value=[];}
+watch(()=>props.selectionKey,clearSelection);
+watch(()=>props.rows.map(row=>row.id).join(','),clearSelection);
 const selected = computed<Row|null>({get:()=>props.rows.find(row=>row.id===selectedID.value)||null,set:row=>{selectedID.value=row?.id||''}});
 const statusNames: Row = {online:'在线',offline:'离线',pending:'待接入',revoked:'已撤销'};
 const stamp = (v:any) => v ? new Date(v).toLocaleString('zh-CN',{hour12:false}) : '—';
@@ -19,7 +28,9 @@ async function copy(value:string) {try{await copyText(value);ElMessage.success('
 function collection(row:Row) {return row.status!=='online'?'等待连接':row.collector_state==='healthy'?'采集正常':row.collector_state==='error'?'采集异常':'等待采集';}
 </script>
 <template>
- <el-table class="server-table" :data="rows" stripe row-key="id" empty-text="暂无服务器">
+ <div class="panel-heading server-toolbar batch-toolbar"><ServerBatch v-if="writer" :rows="checkedRows" :admin="admin" :disabled="busy" @busy="batchBusy=$event" @clear="clearSelection" @changed="emit('changed')"/><slot name="filters"/></div>
+ <el-table ref="table" class="server-table" :data="rows" stripe row-key="id" empty-text="暂无服务器" @selection-change="checked=$event">
+  <el-table-column v-if="writer" type="selection" width="48" :reserve-selection="true" :selectable="()=>!busy"/>
   <el-table-column label="名称" min-width="180"><template #default="{row}"><button class="server-name server-name-with-flag" @click="selected=row"><CountryFlag :code="row.country_code" :name="row.country_name"/><span>{{row.name}}</span></button></template></el-table-column>
   <el-table-column label="公网 IP 地址" min-width="200"><template #default="{row}"><div v-for="address in addresses(row).slice(0,2)" :key="address" class="server-ip"><span :title="address">{{address}}</span><el-button text :icon="DocumentCopy" :aria-label="'复制 IP '+address" @click="copy(address)"/></div><button v-if="addresses(row).length>2" class="text-action" @click="selected=row">另 {{addresses(row).length-2}} 个公网地址</button><span v-if="!addresses(row).length" class="subtle">等待识别公网 IP</span></template></el-table-column>
   <el-table-column prop="agent_version" label="客户端版本" width="110"/>
@@ -29,7 +40,7 @@ function collection(row:Row) {return row.status!=='online'?'等待连接':row.co
   <el-table-column label="最近上报" min-width="160"><template #default="{row}"><span>{{stamp(row.last_seen_at)}}</span></template></el-table-column>
   <el-table-column label="操作" width="172" fixed="right"><template #default="{row}"><div class="server-actions">
    <el-tooltip content="查看事件"><el-button text :icon="List" aria-label="查看事件" @click="emit('history',row)"/></el-tooltip>
-   <el-tooltip v-if="writer" content="编辑"><el-button text :icon="Edit" aria-label="编辑服务器" @click="emit('edit',row)"/></el-tooltip>
+   <el-tooltip v-if="writer" content="编辑"><el-button text :icon="Edit" aria-label="编辑服务器" :disabled="busy" @click="emit('edit',row)"/></el-tooltip>
    <el-tooltip v-if="admin" content="安装命令"><el-button text :icon="Download" aria-label="安装命令" :disabled="busy" @click="emit('enroll',row)"/></el-tooltip>
    <AgentMaintenance v-if="admin" :server="row" :disabled="busy" @changed="emit('changed')" @manual="emit('update',row)" @revoke="emit('revoke',row)" @remove="emit('remove',row)"/>
   </div></template></el-table-column>
@@ -40,4 +51,4 @@ function collection(row:Row) {return row.status!=='online'?'等待连接':row.co
   </template>
  </el-dialog>
 </template>
-<style scoped>.server-name-with-flag,.server-country{display:inline-flex;align-items:center;gap:10px}.server-name-with-flag{text-align:left;max-width:100%}.server-name-with-flag span{overflow-wrap:anywhere}</style>
+<style scoped>.batch-toolbar{justify-content:space-between;gap:16px;flex-wrap:wrap}.batch-toolbar :deep(.filters){margin-left:auto}.server-name-with-flag,.server-country{display:inline-flex;align-items:center;gap:10px}.server-name-with-flag{text-align:left;max-width:100%}.server-name-with-flag span{overflow-wrap:anywhere}</style>

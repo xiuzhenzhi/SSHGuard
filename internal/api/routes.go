@@ -133,6 +133,7 @@ func (a *App) Router() *gin.Engine {
 	web.GET("/servers/:id", a.server)
 	web.POST("/servers", role("admin", "operator"), a.saveServer)
 	web.PATCH("/servers/:id", role("admin", "operator"), a.saveServer)
+	web.PATCH("/servers/:id/group", role("admin", "operator"), a.saveServerGroup)
 	web.DELETE("/servers/:id", role("admin"), a.deleteServer)
 	web.POST("/servers/:id/enrollment", role("admin"), a.enrollment)
 	web.POST("/servers/:id/revoke", role("admin"), a.revoke)

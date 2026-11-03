@@ -24,6 +24,7 @@
 | GET (WebSocket) | /agent/stream | Agent Bearer，无浏览器 Origin |
 | GET | /servers、/servers/:id | 全角色 |
 | POST / PATCH | /servers、/servers/:id | admin/operator |
+| PATCH | /servers/:id/group | admin/operator，仅修改分组 |
 | DELETE | /servers/:id | admin，永久删除服务器及关联历史 |
 | POST | /servers/:id/enrollment、/servers/:id/revoke | admin |
 | GET / POST | /users | admin |
@@ -38,6 +39,7 @@
 - Agent 使用 `Authorization: Bearer <AGENT_TOKEN>`。
 - `GET /events` 支持 `server_id/source_ip/username/outcome/event_type/from/to/page/page_size`，时间为 RFC3339。
 - `PATCH /servers/:id` 提交 `name/group_name/notes`；省略分组或备注会清空对应字段。
+- `PATCH /servers/:id/group` 提交 `{"group_name":"生产环境"}`；字段必须提供，最多 64 字符，空字符串清除分组。只更新分组，保留名称与备注，记录 `server.group.update` 审计。批量界面逐台调用既有更新、撤销、删除接口或此分组接口，各台独立提交；部分失败不回滚已成功的操作。
 - `DELETE /servers/:id`：admin + 同源校验，无需请求体，成功返回 `{"data":{"deleted":true}}`。在同一事务中删除服务器、安装与 Agent 凭证、设置、健康及更新状态、SSH 事件、告警和通知投递记录，保留操作审计并记录 `server.delete`。记录不存在返回 404；不会远程卸载 Agent。
 
 ```json

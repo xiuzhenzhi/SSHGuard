@@ -299,6 +299,7 @@ func TestIntegration(t *testing.T) {
 			want = 200
 		}
 		call("POST", "/servers", map[string]string{"name": "role-check"}, s, "", true, want)
+		call("PATCH", "/servers/"+id+"/group", map[string]string{"group_name": "role-check"}, s, "", true, want)
 		call("POST", "/auth/password", map[string]string{"current_password": "wrong", "new_password": "new-password-2026"}, s, "", true, 403)
 		call("POST", "/auth/password", map[string]string{"current_password": "viewer-test-password", "new_password": strings.Repeat("密", 30)}, s, "", true, 400)
 		call("POST", "/auth/password", map[string]string{"current_password": "viewer-test-password", "new_password": "new-password-2026"}, s, "", true, 200)
@@ -322,6 +323,7 @@ func TestIntegration(t *testing.T) {
 		t.Fatal("expired session retained", e)
 	}
 	call("GET", "/auth/me", nil, session, "", false, 200)
+	testServerGroup(t, app, session, call)
 	testServerDeletion(t, app, session, call)
 	call("POST", "/servers/"+id+"/revoke", map[string]string{}, session, "", true, 200)
 	call("POST", "/agent/heartbeat", nil, "", agent, false, 401)

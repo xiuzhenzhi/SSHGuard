@@ -57,6 +57,8 @@ const geoIPPage=ref<InstanceType<typeof GeoIPSettings>>();
 type Row = Record<string, any>;
 const user = ref<Row | null>(null), booting = ref(true), busy = ref(false), error = ref('');
 const active = ref<string>(pageFromPath(location.pathname)), rows = ref<Row[]>([]), summary = ref<Row>({}), page = ref(1), more = ref(false);
+const serverPageSizes = [10, 20, 50, 100];
+const serverPageSize = ref(20);
 const overview = ref<Row>({});
 const trendRange=ref('24h');
 const management = computed(() => ['alerts','channels','rules','notifications'].includes(active.value));
@@ -173,7 +175,7 @@ async function cachedAPI(path: string, method = 'GET', body?: any, signal?: Abor
   return cached === undefined ? api(path, method, body, signal) : cached;
 }
 function listPath() {
-  const params = new URLSearchParams({page: String(page.value), page_size: active.value === 'rules' ? '100' : '20'});
+  const params = new URLSearchParams({page: String(page.value), page_size: active.value === 'rules' ? '100' : active.value === 'servers' ? String(serverPageSize.value) : '20'});
   if (active.value === 'servers' && search.value) params.set('q',search.value);
   if (active.value === 'events') {if(eventType.value)params.set('event_type',eventType.value);if (outcome.value) params.set('outcome',outcome.value);if (username.value) params.set('username',username.value);if (ip.value) params.set('source_ip',ip.value);if (serverID.value) params.set('server_id',serverID.value);}
   return `/${active.value}?${params}`;
@@ -227,6 +229,7 @@ function writeRoute(mode:'push'|'replace'='replace') {
   if(active.value==='dashboard') {if(trendRange.value!=='24h')params.set('range',trendRange.value);}
   else if(page.value>1)params.set('page',String(page.value));
   if(active.value==='servers'&&search.value)params.set('q',search.value);
+  if(active.value==='servers'&&serverPageSize.value!==20)params.set('page_size',String(serverPageSize.value));
   if(active.value==='events')for(const [key,value] of Object.entries({event_type:eventType.value,username:username.value,source_ip:ip.value,server_id:serverID.value,outcome:outcome.value}))if(value)params.set(key,value);
   const query=params.toString(),path=pathForPage(active.value)+(query?'?'+query:'');
   if(path!==location.pathname+location.search)window.history[mode==='push'?'pushState':'replaceState'](null,'',path);
@@ -236,6 +239,8 @@ function restoreRoute() {
   active.value=!user.value||nav.value.some(item=>item.id===id)?id:'dashboard';
   const number=Number(params.get('page')||1);
   page.value=Number.isSafeInteger(number)&&number>0?number:1;
+  const requestedSize=Number(params.get('page_size')||20);
+  if(active.value==='servers')serverPageSize.value=serverPageSizes.includes(requestedSize)?requestedSize:20;
   search.value=active.value==='servers'?params.get('q')||'':'';
   username.value=active.value==='events'?params.get('username')||'':'';
   ip.value=active.value==='events'?params.get('source_ip')||'':'';
@@ -258,6 +263,7 @@ async function onRouteChange(){navigationOpen.value=false;clearTimeout(refreshTi
 window.addEventListener('popstate',onRouteChange);
 async function refreshPage() {if(refreshing.value)return;responses.clear();refreshing.value=true;try{await load();}finally{refreshing.value=false;}}
 function filter() {page.value = 1;void load();}
+function changeServerPageSize() {page.value=1;rows.value=[];more.value=false;void load();}
 function editServer(row?: Row) {Object.assign(server, {id: row?.id || '',name: row?.name || '',group_name: row?.group_name || '',notes: row?.notes || ''});serverDialog.value = true;}
 async function saveServer() {if(busy.value)return;await perform(async () => {const created = !server.id; const result = await api('/servers' + (server.id ? '/' + server.id : ''),server.id ? 'PATCH' : 'POST',server);serverDialog.value = false;ElMessage.success('服务器已保存');await load();if(created && admin.value) await enrollment({...server,id:result.id});});}
 async function enrollment(row: Row) {
@@ -361,10 +367,10 @@ onUnmounted(() => {stopLive();cancelWarm();responses.clear();clearInterval(timer
     <DatabaseSettings v-else-if="active==='database'" ref="databasePage" :api="api"/>
     <Allowlist v-else-if="active==='ip-allowlist'" :rows="rows" :api="cachedAPI" @refresh="load"/>
     <AlertCenter v-else-if="management" :key="active" :mode="active" :rows="rows" :admin="admin" :writer="writer" :api="cachedAPI" @refresh="load"/>
-    <div v-else class="panel"><div v-if="active==='servers'" class="panel-heading server-toolbar"><div class="filters"><el-input v-model="search" placeholder="搜索名称、主机名或分组" :prefix-icon="Search" clearable @keyup.enter="filter" @clear="filter"/><el-button @click="filter">查询</el-button></div></div>
+    <div v-else class="panel">
     <div v-if="active === 'events'" class="event-filters"><el-select v-model="eventType" placeholder="全部登录类型" clearable><el-option v-for="kind in ['ssh','rdp','vnc','console']" :key="kind" :label="loginLabel({event_type:kind+'.login'})+' · 成功'" :value="kind+'.login'"/><el-option v-for="kind in ['ssh','rdp','vnc','console']" :key="kind+'-failed'" :label="loginLabel({event_type:kind+'.login'})+' · 失败'" :value="kind+'.login_failed'"/></el-select><el-input v-model="username" placeholder="用户名" clearable/><el-input v-model="ip" placeholder="来源 IP" clearable/><el-input v-model="serverID" placeholder="服务器 ID" clearable/><el-select v-model="outcome" placeholder="全部结果" clearable><el-option label="成功" value="success"/><el-option label="失败" value="failure"/></el-select><el-button type="primary" @click="filter">筛选</el-button></div>
     <p v-if="active==='events'" class="event-console-note">“远程 VNC 登录”表示{{consoleHint}}</p>
-    <ServerList v-if="active==='servers'" :rows="rows" :admin="admin" :writer="writer" :busy="busy" @history="history" @edit="editServer" @enroll="enrollment" @update="updateAgent" @revoke="revoke" @remove="deleteServer" @changed="responses.clear();load()"/>
+    <ServerList v-if="active==='servers'" :rows="rows" :admin="admin" :writer="writer" :busy="busy" :selection-key="page+':'+search+':'+serverPageSize" @history="history" @edit="editServer" @enroll="enrollment" @update="updateAgent" @revoke="revoke" @remove="deleteServer" @changed="responses.clear();load()"><template #filters><div class="filters"><el-input v-model="search" placeholder="搜索名称、主机名或分组" :prefix-icon="Search" clearable @keyup.enter="filter" @clear="filter"/><el-button @click="filter">查询</el-button></div></template></ServerList>
     <el-table v-else-if="active === 'events'" :data="rows" empty-text="暂无 登录事件，请检查 Agent 采集状态并发起一次登录。" @row-click="(row: Row) => detail = row">
       <el-table-column label="发生时间" min-width="180"><template #default="{row}">{{ time(row.occurred_at) }}</template></el-table-column>
       <el-table-column prop="server_name" label="服务器" min-width="150"/>
@@ -376,7 +382,7 @@ onUnmounted(() => {stopLive();cancelWarm();responses.clear();clearInterval(timer
     </el-table>
     <el-table v-else-if="active === 'audit-logs'" :data="rows" empty-text="暂无审计记录"><el-table-column label="时间" min-width="185"><template #default="{row}">{{ time(row.created_at) }}</template></el-table-column><el-table-column label="操作人" min-width="120"><template #default="{row}">{{ row.actor || 'Agent / 系统' }}</template></el-table-column><el-table-column label="动作" min-width="150"><template #default="{row}">{{auditNames[row.action]||'其他操作'}}</template></el-table-column><el-table-column label="来源 IP" min-width="150"><template #default="{row}">{{row.source_ip||'—'}}</template></el-table-column><el-table-column label="浏览器 / UA" min-width="210" show-overflow-tooltip><template #default="{row}">{{row.user_agent||'—'}}</template></el-table-column><el-table-column prop="target" label="目标 ID" min-width="300"/></el-table>
     <el-table v-else-if="active === 'users'" :data="rows" empty-text="暂无用户"><el-table-column prop="username" label="用户名"/><el-table-column label="角色"><template #default="{row}">{{roleNames[row.role]||row.role}}</template></el-table-column><el-table-column label="创建时间"><template #default="{row}">{{ time(row.created_at) }}</template></el-table-column></el-table>
-    <div v-if="active !== 'dashboard'" class="pagination"><span>第 {{ page }} 页 · 每页 20 条</span><el-button :disabled="page <= 1" @click="page--;load()">上一页</el-button><el-button :disabled="!more" @click="page++;load()">下一页</el-button></div></div>
+    <div v-if="active !== 'dashboard'" class="pagination"><span v-if="active==='servers'" class="page-size-controls">第 {{ page }} 页<el-select v-model="serverPageSize" size="small" popper-class="server-page-size-dropdown" :fit-input-width="false" aria-label="每页显示条数" style="width:115px" @change="changeServerPageSize"><el-option v-for="size in serverPageSizes" :key="size" :label="'每页 '+size+' 条'" :value="size"/></el-select></span><span v-else>第 {{ page }} 页 · 每页 20 条</span><el-button :disabled="page <= 1" @click="page--;load()">上一页</el-button><el-button :disabled="!more" @click="page++;load()">下一页</el-button></div></div>
     <div v-if="(management && active!=='rules') || active==='ip-allowlist'" class="pagination"><span>第 {{ page }} 页 · 每页 20 条</span><el-button :disabled="page<=1" @click="page--;load()">上一页</el-button><el-button :disabled="!more" @click="page++;load()">下一页</el-button></div>
     </section></div>
   </div>
