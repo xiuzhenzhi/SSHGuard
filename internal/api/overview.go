@@ -28,9 +28,11 @@ func (a *App) overview(c *gin.Context) {
 		bad(c, 400, "不支持的时间范围")
 		return
 	}
-	a.dashboardMu.Lock()
-	defer a.dashboardMu.Unlock()
-	if data, valid := a.cachedDashboard(rangeName); valid {
+	slot := map[string]int{"24h": 1, "7d": 2, "14d": 3, "30d": 4}[rangeName]
+	a.dashboardBuild[slot].Lock()
+	defer a.dashboardBuild[slot].Unlock()
+	data, valid, epoch := a.readDashboard(rangeName)
+	if valid {
 		ok(c, data)
 		return
 	}
@@ -96,7 +98,7 @@ func (a *App) overview(c *gin.Context) {
 		fail(c, e)
 		return
 	}
-	data := gin.H{"trend": buckets, "range": rangeName, "healthy_collectors": healthy, "unacknowledged_alerts": attention, "pending_deliveries": pending, "failed_deliveries": dead, "enabled_channels": channels, "recent_alerts": alerts, "as_of": now}
-	a.saveDashboard(rangeName, data)
+	data = gin.H{"trend": buckets, "range": rangeName, "healthy_collectors": healthy, "unacknowledged_alerts": attention, "pending_deliveries": pending, "failed_deliveries": dead, "enabled_channels": channels, "recent_alerts": alerts, "as_of": now}
+	a.publishDashboard(rangeName, data, epoch)
 	ok(c, data)
 }

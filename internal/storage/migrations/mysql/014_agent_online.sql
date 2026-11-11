@@ -1,0 +1,1 @@
+INSERT INTO alert_rules(id,name,kind,enabled,threshold_count,window_seconds,cooldown_seconds,trusted_cidrs,channel_ids) SELECT '00000000-0000-4000-8000-000000000005','Agent 上线','agent_online',false,1,300,900,'[]','[]' FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM alert_rules WHERE id='00000000-0000-4000-8000-000000000005');

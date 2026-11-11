@@ -16,7 +16,7 @@ import (
 type Rule struct {
 	ID        string   `json:"id"`
 	Name      string   `json:"name" binding:"required,max=128"`
-	Kind      string   `json:"kind" binding:"required,oneof=login root failure_threshold agent_offline collector_error"`
+	Kind      string   `json:"kind" binding:"required,oneof=login root failure_threshold agent_offline agent_online collector_error"`
 	Enabled   bool     `json:"enabled"`
 	Threshold int      `json:"threshold_count" binding:"min=1,max=10000"`
 	Window    int      `json:"window_seconds" binding:"min=30,max=86400"`
@@ -35,12 +35,17 @@ func (a *App) rules(c *gin.Context) {
 	ok(c, gin.H{"items": items, "has_more": false})
 }
 func (a *App) readRules(ctx context.Context, enabledOnly bool) ([]Rule, error) {
+	return readRulesFrom(ctx, a.db, enabledOnly)
+}
+func readRulesFrom(ctx context.Context, db interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, enabledOnly bool) ([]Rule, error) {
 	query := `SELECT id,name,kind,enabled,threshold_count,window_seconds,cooldown_seconds,server_group,trusted_cidrs,channel_ids FROM alert_rules`
 	if enabledOnly {
 		query += ` WHERE enabled=true`
 	}
 	query += ` ORDER BY created_at LIMIT 100`
-	rows, e := a.db.QueryContext(ctx, query)
+	rows, e := db.QueryContext(ctx, query)
 	if e != nil {
 		return nil, e
 	}
@@ -279,7 +284,7 @@ func (a *App) raiseAlert(ctx context.Context, tx *sql.Tx, rule Rule, serverID, e
 	return nil
 }
 func (a *App) alerts(c *gin.Context) {
-	query := `SELECT a.*,s.name AS server_name FROM alerts a LEFT JOIN servers s ON s.id=a.server_id WHERE 1=1`
+	query := `SELECT a.*,s.name AS server_name,n.public_ip AS observed_public_ip,ss.ip_addresses FROM alerts a LEFT JOIN servers s ON s.id=a.server_id LEFT JOIN server_network n ON n.server_id=a.server_id LEFT JOIN server_settings ss ON ss.server_id=a.server_id WHERE 1=1`
 	args := []any{}
 	if c.Query("unacknowledged") == "true" {
 		query += ` AND a.acknowledged_at IS NULL`
@@ -292,7 +297,23 @@ func (a *App) alerts(c *gin.Context) {
 		query += ` AND a.server_id=?`
 		args = append(args, v)
 	}
-	a.list(c, query+` ORDER BY a.created_at DESC LIMIT ? OFFSET ?`, args...)
+	size, offset := page(c)
+	args = append(args, size+1, offset)
+	rows, err := a.db.List(c.Request.Context(), query+` ORDER BY a.created_at DESC LIMIT ? OFFSET ?`, args...)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	more := len(rows) > size
+	if more {
+		rows = rows[:size]
+	}
+	for _, row := range rows {
+		row["server_ip_addresses"] = serverAddresses(map[string]any{"ip_addresses": row["ip_addresses"], "observed_public_ip": row["observed_public_ip"]})
+		delete(row, "ip_addresses")
+		delete(row, "observed_public_ip")
+	}
+	ok(c, gin.H{"items": rows, "has_more": more})
 }
 func (a *App) acknowledgeAlert(c *gin.Context) {
 	id := c.Param("id")

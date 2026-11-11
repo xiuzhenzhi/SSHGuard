@@ -20,7 +20,7 @@
 |---|---|
 | [告警与通知](guides/ALERTING.md) | 检测规则、通知渠道、告警确认 |
 | [地理位置](guides/GEOIP.md) | 公网 IP、来源国家与排行 |
-| [登录防护](guides/LOGIN-SECURITY.md) | 验证码、IP 封禁 |
+| [用户与登录防护](guides/LOGIN-SECURITY.md) | 用户创建与删除、验证码、IP 封禁 |
 
 ## 开发与参考
 

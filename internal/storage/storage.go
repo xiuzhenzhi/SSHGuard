@@ -267,3 +267,23 @@ func Cleanup(ctx context.Context, d *DB) error {
 	}
 	return nil
 }
+
+// IsUniqueViolation identifies duplicate keys without exposing database errors.
+func IsUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) {
+		return mysqlErr.Number == 1062
+	}
+	var state interface{ SQLState() string }
+	if errors.As(err, &state) {
+		return state.SQLState() == "23505"
+	}
+	var code interface{ Code() int }
+	if errors.As(err, &code) {
+		return code.Code() == 2067 || code.Code() == 1555
+	}
+	return false
+}

@@ -118,7 +118,7 @@ const nav = computed(() => [
 ]);
 const title = computed(() => nav.value.find(x => x.id === active.value)?.title || '安全总览');
 const roleNames:Row={admin:'管理员',operator:'操作员',viewer:'只读用户'};
-const auditNames:Row={'auth.login':'登录','auth.logout':'退出登录','auth.password.change':'修改密码','user.create':'创建用户','server.create':'添加服务器','server.update':'编辑服务器','server.reporting.update':'修改上报间隔','agent.enrolled':'Agent 注册','agent.enrollment.create':'生成安装命令','agent.revoke':'撤销 Agent 凭证','agent.update.request':'请求更新 Agent','agent.update.success':'Agent 更新成功','agent.update.failed':'Agent 更新失败','channel.create':'添加通知渠道','channel.update':'编辑通知渠道','channel.test':'测试通知渠道','notification.retry':'重试通知投递','rule.save':'保存检测规则','alert.acknowledge':'确认告警','auth.ip.block':'封禁登录来源','auth.ip.unblock':'解除登录封禁','auth.protection.update':'更新登录防护','allowlist.create':'添加 IP 白名单','allowlist.delete':'移除 IP 白名单'};
+const auditNames:Row={'auth.login':'登录','auth.logout':'退出登录','auth.password.change':'修改密码','user.create':'创建用户','user.delete':'删除用户','server.delete':'删除服务器','server.group.update':'修改服务器分组','alert.acknowledge.batch':'批量确认告警','database.retention.update':'修改数据保留时间','database.maintenance.start':'启动数据库维护','geoip.settings.update':'修改地理位置设置','geoip.database.update':'更新地理位置数据库','server.create':'添加服务器','server.update':'编辑服务器','server.reporting.update':'修改上报间隔','agent.enrolled':'Agent 注册','agent.enrollment.create':'生成安装命令','agent.revoke':'撤销 Agent 凭证','agent.update.request':'请求更新 Agent','agent.update.success':'Agent 更新成功','agent.update.failed':'Agent 更新失败','channel.create':'添加通知渠道','channel.update':'编辑通知渠道','channel.test':'测试通知渠道','notification.retry':'重试通知投递','rule.save':'保存检测规则','alert.acknowledge':'确认告警','auth.ip.block':'封禁登录来源','auth.ip.unblock':'解除登录封禁','auth.protection.update':'更新登录防护','allowlist.create':'添加 IP 白名单','allowlist.delete':'移除 IP 白名单'};
 const countryNames=new Intl.DisplayNames(['zh-CN'],{type:'region'});
 const countryName=(row:Row)=>!row.source_ip?'不可获取':row.country_code?(countryNames.of(row.country_code)||row.country_name||row.country_code):(row.source_is_public===false?'内网 / 保留地址':'未知');
 const sourceAddress=loginSource;
@@ -288,7 +288,22 @@ async function deleteServer(row: Row) {
     await load();
   });
 }
-async function saveUser() {await perform(async () => {await api('/users','POST',newUser);userDialog.value = false;newUser.password = '';await load();});}
+async function saveUser() {if (busy.value) return;await perform(async () => {
+  const username = newUser.username.trim();
+  if ([...username].length < 3 || [...username].length > 64) throw new Error('用户名必须为 3–64 个字符');
+  const passwordBytes = new TextEncoder().encode(newUser.password).length;
+  if (passwordBytes < 12 || passwordBytes > 72) throw new Error('密码必须为 12–72 字节');
+  await api('/users','POST',{...newUser,username});userDialog.value = false;newUser.password = '';await load();});}
+async function deleteUser(row: Row) {
+  if (busy.value) return;
+  try {await ElMessageBox.confirm(`删除用户“${row.username}”后，该用户将无法登录，已有会话也会失效。`, '删除用户', {type:'warning',confirmButtonText:'删除',cancelButtonText:'取消'});} catch {return;}
+  await perform(async () => {
+    await api('/users/'+encodeURIComponent(row.id),'DELETE');
+    ElMessage.success('用户已删除');
+    if (rows.value.length === 1 && page.value > 1) page.value--;
+    await load();
+  });
+}
 async function copyCommand() {if(!commandReady.value)return;try {await copyText(command.value);ElMessage.success('命令已复制');}catch(e){ElMessage.error((e as Error).message||'请手动复制命令');}}
 function history(row: Row) {serverID.value = row.id;navigate('events');}
 function showAllEvents(){eventType.value='';username.value='';ip.value='';serverID.value='';outcome.value='';void navigate('events');}
@@ -391,7 +406,7 @@ onUnmounted(() => {stopLive();cancelWarm();responses.clear();clearInterval(timer
       <el-table-column label="结果" width="100"><template #default="{row}"><span :class="['status', row.outcome === 'success' ? 'online' : 'failed']">{{ row.outcome === 'success' ? '成功' : '失败' }}</span></template></el-table-column>
     </el-table>
     <el-table v-else-if="active === 'audit-logs'" :data="rows" empty-text="暂无审计记录"><el-table-column label="时间" min-width="185"><template #default="{row}">{{ time(row.created_at) }}</template></el-table-column><el-table-column label="操作人" min-width="120"><template #default="{row}">{{ row.actor || 'Agent / 系统' }}</template></el-table-column><el-table-column label="动作" min-width="150"><template #default="{row}">{{auditNames[row.action]||'其他操作'}}</template></el-table-column><el-table-column label="来源 IP" min-width="150"><template #default="{row}">{{row.source_ip||'—'}}</template></el-table-column><el-table-column label="浏览器 / UA" min-width="210" show-overflow-tooltip><template #default="{row}">{{row.user_agent||'—'}}</template></el-table-column><el-table-column prop="target" label="目标 ID" min-width="300"/></el-table>
-    <el-table v-else-if="active === 'users'" :data="rows" empty-text="暂无用户"><el-table-column prop="username" label="用户名"/><el-table-column label="角色"><template #default="{row}">{{roleNames[row.role]||row.role}}</template></el-table-column><el-table-column label="创建时间"><template #default="{row}">{{ time(row.created_at) }}</template></el-table-column></el-table>
+    <el-table v-else-if="active === 'users'" :data="rows" empty-text="暂无用户"><el-table-column prop="username" label="用户名"/><el-table-column label="角色"><template #default="{row}">{{roleNames[row.role]||row.role}}</template></el-table-column><el-table-column label="创建时间"><template #default="{row}">{{ time(row.created_at) }}</template></el-table-column><el-table-column label="操作" width="120"><template #default="{row}"><el-button type="danger" link :disabled="row.id===user?.id || busy" @click="deleteUser(row)">{{row.id===user?.id ? '当前用户' : '删除'}}</el-button></template></el-table-column></el-table>
     <div v-if="active !== 'dashboard'" class="pagination"><span v-if="active==='servers'" class="page-size-controls">第 {{ page }} 页<el-select v-model="serverPageSize" size="small" popper-class="server-page-size-dropdown" :fit-input-width="false" aria-label="每页显示条数" style="width:115px" @change="changeServerPageSize"><el-option v-for="size in serverPageSizes" :key="size" :label="'每页 '+size+' 条'" :value="size"/></el-select></span><span v-else>第 {{ page }} 页 · 每页 20 条</span><el-button :disabled="page <= 1" @click="page--;load()">上一页</el-button><el-button :disabled="!more" @click="page++;load()">下一页</el-button></div></div>
     <div v-if="(management && active!=='rules') || active==='ip-allowlist'" class="pagination"><span>第 {{ page }} 页 · 每页 20 条</span><el-button :disabled="page<=1" @click="page--;load()">上一页</el-button><el-button :disabled="!more" @click="page++;load()">下一页</el-button></div>
     </section></div>

@@ -15,6 +15,7 @@ import (
 	"sshguard/internal/storage"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type User struct {
@@ -148,13 +149,17 @@ func (a *App) login(c *gin.Context) {
 }
 func (a *App) changePassword(c *gin.Context) {
 	var in struct {
-		Current string `json:"current_password" binding:"required,max=72"`
-		New     string `json:"new_password" binding:"required,min=12,max=72"`
+		Current string `json:"current_password"`
+		New     string `json:"new_password"`
 	}
 	if !bind(c, &in) {
 		return
 	}
-	if len(in.Current) > 72 || len(in.New) < 12 || len(in.New) > 72 {
+	if len(in.Current) == 0 || len(in.Current) > 72 {
+		bad(c, 400, "请输入有效的当前密码（不超过 72 字节）")
+		return
+	}
+	if len(in.New) < 12 || len(in.New) > 72 {
 		bad(c, 400, "新密码必须为 12–72 字节")
 		return
 	}
@@ -245,11 +250,20 @@ func (a *App) logout(c *gin.Context) {
 }
 func (a *App) createUser(c *gin.Context) {
 	var in struct {
-		Username string `json:"username" binding:"required,min=3,max=64"`
-		Password string `json:"password" binding:"required,min=12,max=72"`
-		Role     string `json:"role" binding:"required,oneof=admin operator viewer"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Role     string `json:"role"`
 	}
 	if !bind(c, &in) {
+		return
+	}
+	in.Username = strings.TrimSpace(in.Username)
+	if n := utf8.RuneCountInString(in.Username); n < 3 || n > 64 {
+		bad(c, 400, "用户名必须为 3–64 个字符")
+		return
+	}
+	if in.Role != "admin" && in.Role != "operator" && in.Role != "viewer" {
+		bad(c, 400, "请选择有效的用户角色")
 		return
 	}
 	if len(in.Password) < 12 || len(in.Password) > 72 {
@@ -266,9 +280,69 @@ func (a *App) createUser(c *gin.Context) {
 		_, e := tx.ExecContext(c.Request.Context(), a.db.Bind(`INSERT INTO users(id,username,password_hash,role) VALUES(?,?,?,?)`), id, in.Username, string(b), in.Role)
 		return e
 	})
+	if storage.IsUniqueViolation(e) {
+		bad(c, 409, "用户名已存在")
+		return
+	}
 	if e != nil {
 		fail(c, e)
 		return
 	}
 	ok(c, User{id, in.Username, in.Role})
+}
+
+func (a *App) deleteUser(c *gin.Context) {
+	actor := c.MustGet("user").(User)
+	id := c.Param("id")
+	if id == actor.ID {
+		bad(c, 400, "不能删除当前登录用户")
+		return
+	}
+	err := a.mutate(c, actor.ID, "user.delete", id, func(tx *sql.Tx) error {
+		// Lock administrators in a stable order and recheck the actor inside the
+		// transaction. Concurrent deletions cannot remove the last administrator.
+		rows, err := tx.QueryContext(c.Request.Context(), a.db.Bind(`SELECT id FROM users WHERE role='admin' ORDER BY id FOR UPDATE`))
+		if err != nil {
+			return err
+		}
+		actorExists := false
+		for rows.Next() {
+			var adminID string
+			if err = rows.Scan(&adminID); err != nil {
+				rows.Close()
+				return err
+			}
+			actorExists = actorExists || adminID == actor.ID
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		if !actorExists {
+			return sql.ErrNoRows
+		}
+		var target string
+		if err = tx.QueryRowContext(c.Request.Context(), a.db.Bind(`SELECT id FROM users WHERE id=? FOR UPDATE`), id).Scan(&target); err != nil {
+			return err
+		}
+		// Retain audit and alert history, detaching only the deleted user reference.
+		for _, query := range []string{
+			`DELETE FROM sessions WHERE user_id=?`,
+			`INSERT INTO audit_actor_snapshots(audit_id,username) SELECT a.id,u.username FROM audit_logs a JOIN users u ON u.id=a.actor_id WHERE a.actor_id=? AND NOT EXISTS (SELECT 1 FROM audit_actor_snapshots x WHERE x.audit_id=a.id)`,
+			`UPDATE audit_logs SET actor_id=NULL WHERE actor_id=?`,
+			`UPDATE alerts SET acknowledged_by=NULL WHERE acknowledged_by=?`,
+			`DELETE FROM users WHERE id=?`,
+		} {
+			if _, err = tx.ExecContext(c.Request.Context(), a.db.Bind(query), id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	ok(c, gin.H{"deleted": true})
 }
