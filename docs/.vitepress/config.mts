@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitepress';
 import { fileURLToPath } from 'node:url';
 import { tokenize } from './search.mjs';
 
+const docsVersion = readFileSync(new URL('../../DOCS_VERSION', import.meta.url), 'utf8').trim();
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
 export default defineConfig({
@@ -23,7 +25,7 @@ export default defineConfig({
   markdown: { lineNumbers: false },
   themeConfig: {
     logo: '/sshguard.svg',
-    siteTitle: 'SSHGuard 文档',
+    siteTitle: `SSHGuard 文档 · v${docsVersion}`,
     nav: [
       { text: '快速开始', link: '/docs/guides/QUICKSTART' },
       { text: '使用指南', link: '/docs/README' },
@@ -52,7 +54,7 @@ export default defineConfig({
       { text: '功能指南', collapsed: false, items: [
         { text: '告警与通知', link: '/docs/guides/ALERTING' },
         { text: '地理位置与公网 IP', link: '/docs/guides/GEOIP' },
-        { text: '登录防护', link: '/docs/guides/LOGIN-SECURITY' },
+        { text: '用户与登录防护', link: '/docs/guides/LOGIN-SECURITY' },
         { text: '数据库与数据保留', link: '/docs/guides/DATABASE' },
       ] },
       { text: '开发与项目', collapsed: false, items: [

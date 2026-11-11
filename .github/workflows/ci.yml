@@ -2,9 +2,9 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', 'package.json', 'package-lock.json', 'scripts/build/build-docs.mjs', 'scripts/checks/check-docs.mjs', '.github/workflows/docs.yml']
+    paths-ignore: ['DOCS_VERSION', 'docs/**', '**/*.md', 'LICENSE', 'package.json', 'package-lock.json', 'scripts/build/build-docs.mjs', 'scripts/checks/check-docs.mjs', '.github/workflows/docs.yml']
   pull_request:
-    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', 'package.json', 'package-lock.json', 'scripts/build/build-docs.mjs', 'scripts/checks/check-docs.mjs', '.github/workflows/docs.yml']
+    paths-ignore: ['DOCS_VERSION', 'docs/**', '**/*.md', 'LICENSE', 'package.json', 'package-lock.json', 'scripts/build/build-docs.mjs', 'scripts/checks/check-docs.mjs', '.github/workflows/docs.yml']
   workflow_dispatch:
     inputs:
       full_validation:

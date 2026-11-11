@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatAlertMessage, normalizeRule } from '../lib/alertPresentation';
 import { computed, reactive, ref, watch } from 'vue';
 import { ElDialog, ElMessage, ElMessageBox } from 'element-plus';
 type Row = Record<string,any>;
@@ -7,7 +8,7 @@ const emit=defineEmits<{refresh:[]}>();
 const dialog=ref(false),saving=ref(false),selected=ref<Row|null>(null),available=ref<Row[]>([]);
 const form=reactive<Row>({}),config=reactive<Row>({}),configured=ref<Row>({}),trusted=ref(''),recipients=ref('');
 const kinds:Row={webhook:'Webhook',wecom:'企业微信',dingtalk:'钉钉',feishu:'飞书',telegram:'Telegram',smtp:'邮件 SMTP'};
-const rules:Row={login:'登录成功',root:'特权账户登录',failure_threshold:'连续认证失败',agent_offline:'Agent 离线',collector_error:'采集异常'};
+const rules:Row={login:'登录成功',root:'特权账户登录',failure_threshold:'认证失败次数达到阈值',agent_offline:'Agent 离线',agent_online:'Agent 上线',collector_error:'采集异常'};
 const statuses:Row={pending:'等待重试 / 投递',sending:'正在投递',sent:'已送达',dead:'需要处理'};
 const deliveryErrors:Row={'channel disabled':'通知渠道已停用，请启用后重试','delivery attempts exhausted':'已达到最大重试次数，请检查渠道配置后重试','channel decryption failed; restore the encryption key':'无法解密通知渠道配置，请恢复原加密密钥','delivery failed; verify channel credentials, TLS, destination policy and provider status':'投递失败，请检查渠道凭证、TLS、目标访问规则及服务商状态'};
 const stamp=(s:any)=>s?new Date(s).toLocaleString('zh-CN',{hour12:false}):'—';
@@ -22,7 +23,7 @@ async function acknowledgeBatch(all=false){
  if(all){try{await ElMessageBox.confirm('将确认所有分页中的待处理告警，已确认和已恢复的告警会自动跳过。','确认全部待处理告警',{confirmButtonText:'全部确认',cancelButtonText:'取消',type:'warning',closeOnClickModal:false,closeOnPressEscape:true});}catch{return;}}
  await perform(async()=>{const result=await props.api('/alerts/acknowledge','POST',all?{all:true}:{ids:[...checked.value]});checked.value=[];emit('refresh');ElMessage.success(result.acknowledged?`已确认 ${result.acknowledged} 条告警`:'没有需要确认的告警');});
 }
-const configFields=computed(()=>form.kind==='smtp' ? [{key:'host',label:'SMTP 主机',type:'text'},{key:'port',label:'端口',type:'number'},{key:'username',label:'登录用户名',type:'text'},{key:'password',label:'登录密码',type:'password'},{key:'from',label:'发件地址',type:'email'}] : form.kind==='telegram' ? [{key:'bot_token',label:'Bot Token',type:'password'},{key:'chat_id',label:'Chat ID',type:'text'}] : [{key:'url',label:'HTTPS Webhook 地址',type:'password'},...(['webhook','dingtalk','feishu'].includes(form.kind)?[{key:'secret',label:'签名密钥',type:'password'}]:[])]);
+const configFields=computed(()=>form.kind==='smtp' ? [{key:'host',label:'SMTP 主机',type:'text'},{key:'port',label:'端口',type:'number'},{key:'username',label:'登录用户名',type:'text'},{key:'password',label:'登录密码',type:'password'},{key:'from',label:'发件地址',type:'email'}] : form.kind==='telegram' ? [{key:'bot_token',label:'机器人令牌（Bot Token）',type:'password'},{key:'chat_id',label:'会话 ID（Chat ID）',type:'text'}] : [{key:'url',label:'HTTPS Webhook 地址',type:'password'},...(['webhook','dingtalk','feishu'].includes(form.kind)?[{key:'secret',label:'签名密钥',type:'password'}]:[])]);
 async function perform(fn:()=>Promise<void>){saving.value=true;try{await fn()}catch(e){ElMessage.error((e as Error).message)}finally{saving.value=false}}
 function reset(){Object.keys(form).forEach(k=>delete form[k]);Object.keys(config).forEach(k=>delete config[k]);configured.value={};trusted.value='';recipients.value='';}
 async function edit(row?:Row){await perform(async()=>{
@@ -38,7 +39,7 @@ async function edit(row?:Row){await perform(async()=>{
  dialog.value=true;
 })}
 async function save(){await perform(async()=>{
- const body=isChannel.value?{...form,config:{...config,to:recipients.value.split(/[\n,]+/).map(v=>v.trim()).filter(Boolean)}}:{...form,trusted_cidrs:trusted.value.split(/[\n,]+/).map(v=>v.trim()).filter(Boolean)};
+ const body=isChannel.value?{...form,config:{...config,to:recipients.value.split(/[\n,]+/).map(v=>v.trim()).filter(Boolean)}}:normalizeRule({...form,trusted_cidrs:trusted.value.split(/[\n,]+/).map(v=>v.trim()).filter(Boolean)});
  await props.api('/'+props.mode+(form.id?'/'+form.id:''),form.id?'PATCH':'POST',body);
  dialog.value=false;reset();emit('refresh');ElMessage.success('配置已保存');
 })}
@@ -74,12 +75,13 @@ async function retry(row:Row){await perform(async()=>{await props.api(`/notifica
    </template>
    <template v-else>
     <label>服务器分组<input v-model="form.server_group" maxlength="64" placeholder="留空表示全部服务器；填写时须与服务器分组一致"/></label>
-    <div class="form-grid"><label>阈值{{ ['agent_offline','collector_error'].includes(form.kind)?'（秒）':'（次数）' }}<input v-model.number="form.threshold_count" type="number" min="1" max="10000" required/></label><label>统计窗口（秒）<input v-model.number="form.window_seconds" type="number" min="30" max="86400" required/></label><label>冷却时间（秒）<input v-model.number="form.cooldown_seconds" type="number" min="30" max="86400" required/></label></div>
-    <label>规则 IP 白名单<textarea v-model="trusted" rows="3" placeholder="每行一个 IP 或网段，例如 192.0.2.1 或 2001:db8::/32"/></label>
+    <div class="form-grid"><label v-if="form.kind!=='agent_online'">阈值{{ ['agent_offline','collector_error'].includes(form.kind)?'（秒）':'（次数）' }}<input v-model.number="form.threshold_count" type="number" min="1" max="10000" required/></label><label v-if="form.kind!=='agent_online'">统计窗口（秒）<input v-model.number="form.window_seconds" type="number" min="30" max="86400" required/></label><label>冷却时间（秒）<input v-model.number="form.cooldown_seconds" type="number" min="30" max="86400" required/></label></div>
+    <p v-if="form.kind==='agent_online'" class="form-note">首次上线或离线后重新上线时触发，正常心跳不会重复触发。离线判定沿用服务器上报间隔。</p>
+    <label v-if="form.kind!=='agent_online'">规则 IP 白名单<textarea v-model="trusted" rows="3" placeholder="每行一个 IP 或网段，例如 192.0.2.1 或 2001:db8::/32"/></label>
     <label>投递渠道<select v-model="form.channel_ids" multiple size="4"><option v-for="channel in available" :key="channel.id" :value="channel.id">{{ channel.name }}{{ channel.enabled?'':'（已停用）' }}</option></select><small>未选择时使用所有已启用渠道。按 Ctrl / Command 多选。</small></label>
    </template>
    <div class="dialog-actions"><button type="button" class="secondary-action" @click="dialog=false">取消</button><button class="primary-action" type="submit" :disabled="saving">{{ saving?'保存中…':'保存配置' }}</button></div>
   </form>
  </el-dialog>
- <el-dialog :model-value="!!selected" title="告警详情" width="min(640px,94vw)" @close="selected=null" :close-on-click-modal="false" :close-on-press-escape="true"><template v-if="selected"><h3>{{ selected.title }}</h3><p>{{ stamp(selected.created_at) }} · {{ selected.server_name || '系统' }}</p><pre class="detail">{{ selected.message }}</pre></template></el-dialog>
+ <el-dialog :model-value="!!selected" title="告警详情" width="min(640px,94vw)" @close="selected=null" :close-on-click-modal="false" :close-on-press-escape="true"><template v-if="selected"><h3>{{ selected.title }}</h3><p>{{ stamp(selected.created_at) }} · {{ selected.server_name || '系统' }}</p><p>服务器公网 IP（当前）：{{ selected.server_ip_addresses?.length ? selected.server_ip_addresses.join('、') : '暂无公网 IP' }}</p><pre class="detail">{{ formatAlertMessage(selected.message) }}</pre></template></el-dialog>
 </template>

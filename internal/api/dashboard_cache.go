@@ -18,3 +18,19 @@ func (a *App) saveDashboard(key string, data any) {
 	}
 	a.dashboardCache[key] = dashboardSnapshot{time.Now(), data}
 }
+
+// The shared cache lock protects only snapshots, never database queries.
+func (a *App) readDashboard(key string) (any, bool, uint64) {
+	a.dashboardMu.Lock()
+	defer a.dashboardMu.Unlock()
+	data, valid := a.cachedDashboard(key)
+	return data, valid, a.dashboardEpoch
+}
+
+func (a *App) publishDashboard(key string, data any, epoch uint64) {
+	a.dashboardMu.Lock()
+	defer a.dashboardMu.Unlock()
+	if epoch == a.dashboardEpoch {
+		a.saveDashboard(key, data)
+	}
+}
