@@ -1,4 +1,4 @@
-﻿import {test} from 'node:test';
+import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,readdirSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
@@ -23,4 +23,10 @@ test('public controller downloads exclude internal and duplicate Agent assets',(
   writeFileSync(join(source,'SHA256SUMS'),manifest+manifest.split('\n')[0]+'\n');
   assert.throws(()=>stageControllerAssets(source,output),/checksum mismatch/);
  } finally {rmSync(root,{recursive:true,force:true});}
+});
+
+test('Docker builder matches the required Go toolchain',()=>{
+ const goVersion=readFileSync(new URL('../../go.mod',import.meta.url),'utf8').match(/^go (\S+)$/m)?.[1];
+ const dockerVersion=readFileSync(new URL('../../deploy/Dockerfile.api',import.meta.url),'utf8').match(/^FROM golang:([^ ]+)-alpine AS build$/m)?.[1];
+ assert.ok(goVersion);assert.equal(dockerVersion,goVersion);
 });
