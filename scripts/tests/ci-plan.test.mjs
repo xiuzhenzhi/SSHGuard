@@ -32,7 +32,7 @@ test('release version edits do not expand a frontend-only change',()=>{
  assert.deepEqual(planCI(['AGENT_VERSION','internal/api/routes.go'],false,['internal/api/routes.go']),{...none,agent:true});
 });
 test('component checks stay isolated',()=>{
- for(const p of ['README.md','docs/guides/AGENTS.md','docs/.vitepress/config.mts','.github/workflows/docs.yml'])assert.deepEqual(planCI([p]),{...none,docs:true},p);
+ for(const p of ['DOCS_VERSION','README.md','docs/guides/AGENTS.md','docs/.vitepress/config.mts','.github/workflows/docs.yml'])assert.deepEqual(planCI([p]),{...none,docs:true},p);
  for(const p of ['scripts/checks/ci-plan.mjs','scripts/tests/ci-plan.test.mjs'])assert.deepEqual(planCI([p]),none,p);
  assert.deepEqual(planCI(['web/src/App.vue']),{...none,web:true});
  assert.deepEqual(planCI(['internal/agent/run.go']),{...none,agent:true});

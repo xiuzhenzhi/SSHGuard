@@ -31,7 +31,8 @@ if (releases.some(r => r.tag_name === tag)) throw Error('A Release already uses 
 const oldAgent = existsSync('AGENT_VERSION') ? readFileSync('AGENT_VERSION','utf8').trim() : current;
 const changed = !existsSync('AGENT_VERSION') || agentChanged(oldAgent);
 const [agentMajor, agentMinor, agentPatch] = parseVersion(oldAgent).numbers;
-const agentVersion = changed ? `${agentMajor}.${agentMinor}.${agentPatch + 1}` : oldAgent;
+const nextAgent = agentMajor === 0 && agentMinor < 4 ? "0.4.0" : `${agentMajor}.${agentMinor}.${agentPatch + 1}`;
+const agentVersion = changed ? nextAgent : oldAgent;
 if (changed && tags.includes(agentTag(agentVersion))) throw Error('Next Agent tag already exists; retry that release instead of skipping a version.');
 writeFileSync('AGENT_VERSION', agentVersion + '\n');
 writeFileSync('VERSION', version + '\n');

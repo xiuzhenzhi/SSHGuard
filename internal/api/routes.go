@@ -24,14 +24,16 @@ type App struct {
 	dummyHash      string
 	hub            *liveHub
 	dashboardMu    sync.Mutex
+	dashboardBuild [5]sync.Mutex
+	dashboardEpoch uint64
 	dashboardCache map[string]dashboardSnapshot
 	countryFlights singleflight.Group
 	countryEpoch   uint64
 	geo            geoIPState
 }
 
-var Version = "0.3.26"
-var AgentVersion = "0.3.22"
+var Version = "0.4.0"
+var AgentVersion = "0.4.0"
 
 func New(db *storage.DB, cfg Config) *gin.Engine {
 	return NewApp(db, cfg).Router()
@@ -141,12 +143,13 @@ func (a *App) Router() *gin.Engine {
 	web.GET("/events", a.events)
 	web.GET("/events/:id", a.event)
 	web.GET("/audit-logs", role("admin"), func(c *gin.Context) {
-		a.list(c, `SELECT a.id,u.username AS actor,a.action,a.target,a.created_at,x.source_ip,x.user_agent FROM audit_logs a LEFT JOIN users u ON a.actor_id=u.id LEFT JOIN audit_context x ON x.audit_id=a.id ORDER BY a.id DESC LIMIT ? OFFSET ?`)
+		a.list(c, `SELECT a.id,COALESCE(u.username,actor_snapshot.username) AS actor,a.action,a.target,a.created_at,x.source_ip,x.user_agent FROM audit_logs a LEFT JOIN users u ON a.actor_id=u.id LEFT JOIN audit_context x ON x.audit_id=a.id LEFT JOIN audit_actor_snapshots actor_snapshot ON actor_snapshot.audit_id=a.id ORDER BY a.id DESC LIMIT ? OFFSET ?`)
 	})
 	web.GET("/users", role("admin"), func(c *gin.Context) {
 		a.list(c, `SELECT id,username,role,created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`)
 	})
 	web.POST("/users", role("admin"), a.createUser)
+	web.DELETE("/users/:id", role("admin"), a.deleteUser)
 	r.POST("/api/v1/agent/enroll", a.enroll)
 	agent := r.Group("/api/v1/agent", a.agentAuth)
 	agent.GET("/stream", a.agentStream)
@@ -270,9 +273,10 @@ func (a *App) mutate(c *gin.Context, actor, action, target string, fn func(*sql.
 	return tx.Commit()
 }
 func (a *App) summary(c *gin.Context) {
-	a.dashboardMu.Lock()
-	defer a.dashboardMu.Unlock()
-	if data, valid := a.cachedDashboard("summary"); valid {
+	a.dashboardBuild[0].Lock()
+	defer a.dashboardBuild[0].Unlock()
+	data, valid, epoch := a.readDashboard("summary")
+	if valid {
 		ok(c, data)
 		return
 	}
@@ -287,7 +291,7 @@ func (a *App) summary(c *gin.Context) {
 		fail(c, e)
 		return
 	}
-	data := gin.H{"version": Version, "servers": total, "online": on, "offline_or_pending": total - on - rev, "revoked": rev, "events_24h": events, "success_24h": success, "failure_24h": events - success, "database": a.db.Driver}
-	a.saveDashboard("summary", data)
+	data = gin.H{"version": Version, "servers": total, "online": on, "offline_or_pending": total - on - rev, "revoked": rev, "events_24h": events, "success_24h": success, "failure_24h": events - success, "database": a.db.Driver}
+	a.publishDashboard("summary", data, epoch)
 	ok(c, data)
 }

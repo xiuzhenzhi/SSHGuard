@@ -111,3 +111,15 @@ GET /api/v1/health 返回 status、database、phase、version，不返回连接�
 - `POST /api/v1/settings/database/reclaim`：传入 `{ "confirm": true }`，SQLite / PostgreSQL / MySQL 根据类型执行维护，返回 202 后轮询 GET 接口查看 `maintenance.state`。状态包括 idle、running、completed、failed；重复运行返回 409。
 
 写入请求遵循会话、管理员权限和 Origin 校验，操作写入审计。维护失败信息不泄漏数据库连接凭证。
+
+## 用户创建与删除
+
+- `POST /users`：仅 admin，提交 `username/password/role`，角色为 `admin/operator/viewer`。用户名去除首尾空白后 3–64 个字符，密码 12–72 个 UTF-8 字节；字段错误返回 400，用户名重复返回 409。
+- `DELETE /users/:id`：仅 admin 且要求同源，无需请求体；成功返回 `{"data":{"deleted":true}}`。当前登录账号不能删除，返回 400；目标不存在返回 404。删除用户、撤销会话、保留历史引用及写入 `user.delete` 审计在同一事务完成。
+- 审计接口的 `actor` 在用户删除后使用保留的用户名；不会误归属到后来创建的同名用户。
+
+## 上线规则与告警地址
+
+`POST /rules`、`PATCH /rules/:id` 支持 `kind: "agent_online"`，默认规则停用。首次上线及超过在线宽限后的重新上线触发；沿用分组、渠道及冷却设置。API 仍需提交合法的 `threshold_count/window_seconds`（建议 1 / 300），上线规则不使用这两个字段，也不应用 IP 白名单。
+
+`GET /alerts` 增加 `server_ip_addresses` 字符串数组，表示服务器当前公网 IPv4 / IPv6，缺失时为空数组。此字段不同于登录来源 IP，也不是事件发生时的历史地址快照。

@@ -155,6 +155,7 @@ func (a *App) deleteServer(c *gin.Context) {
 		return
 	}
 	a.dashboardMu.Lock()
+	a.dashboardEpoch++
 	clear(a.dashboardCache)
 	a.countryEpoch++
 	a.dashboardMu.Unlock()
