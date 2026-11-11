@@ -39,8 +39,5 @@ features:
     details: 自托管部署，可选 SQLite、MySQL 或 PostgreSQL；配置、数据库和加密密钥都由你维护。
     link: /docs/deployment/OPERATIONS
     linkText: 备份与运维
-  - title: 独立版本与彻底卸载
-    details: Agent 未变化时沿用已有版本；卸载清除本机配置、凭据、队列与专用日志。主控、数据库、前端及文档按改动范围验证。
-    link: /docs/README
-    linkText: 浏览全部文档
+
 ---
