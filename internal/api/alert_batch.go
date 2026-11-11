@@ -82,6 +82,7 @@ func (a *App) acknowledgeAlerts(c *gin.Context) {
 		return
 	}
 	a.dashboardMu.Lock()
+	a.dashboardEpoch++
 	delete(a.dashboardCache, "24h")
 	delete(a.dashboardCache, "7d")
 	delete(a.dashboardCache, "14d")
