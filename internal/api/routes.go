@@ -33,7 +33,7 @@ type App struct {
 }
 
 var Version = "0.4.0"
-var AgentVersion = "0.3.22"
+var AgentVersion = "0.4.0"
 
 func New(db *storage.DB, cfg Config) *gin.Engine {
 	return NewApp(db, cfg).Router()

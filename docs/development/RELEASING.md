@@ -51,14 +51,15 @@ node scripts/build/package-release.mjs
 
 ## 发布产物
 
+主控 Release 自 v0.4.0 起只上传以下四个文件；GitHub 自动生成的两份源码归档另计。
+
 | 文件 | 内容 |
 |---|---|
-| `sshguard-linux-amd64.tar.gz` / `arm64` | 主控、Web、Agent、管理脚本和部署模板（不包含 docs） |
-| `sshguard-agent-*` | Linux / Windows、amd64 / arm64 Agent |
-| `install-agent.*` / `uninstall-agent.*` | Agent 安装与卸载脚本 |
+| `sshguard-linux-amd64.tar.gz` / `arm64` | 主控、Web、管理脚本、部署模板及本地 Agent 下载文件 |
 | `sshguard.sh` | 统一安装、更新与服务管理入口 |
-| `deploy.sh` / `quick-start.sh` / `update.sh` / `uninstall.sh` | 当前发行包管理入口，转交统一脚本 |
-| `.sha256` / `SHA256SUMS` | 校验清单 |
+| `SHA256SUMS` | 对应以上三个文件的校验清单 |
+
+`deploy.sh`、`quick-start.sh`、`update.sh`、`uninstall.sh` 和版本信息保留在安装包内，不再单独上传。发布说明直接显示在 Release 页面。Agent 的四个平台程序、安装卸载脚本及逐文件校验继续在独立的 `agent-v*` Release 中提供，兼容现有安装器。CI 内部验证包可包含更多文件，不等于公开下载列表。
 
 完整发布流程包含跨平台测试、数据库测试和五组原生安装升级。验证结果见 [验证记录](VALIDATION.md)。
 
@@ -119,6 +120,6 @@ Release 按上个标签到当前提交判断变化，仍构建并校验主控发
 
 ## v0.4 起的版本基线
 
-主控 `VERSION` 与文档 `DOCS_VERSION` 本次为 0.4.0；Agent 本次仍为 0.3.22。下次 Agent 输入变化时，准备版本脚本将 Agent 提升到 0.4.0，以后按自己的版本递增，不跟随主控。没有 Agent 改动则继续复用已发布的 Agent。
+主控 `VERSION`、Agent `AGENT_VERSION` 与文档 `DOCS_VERSION` 本次均为 0.4.0。因 Go 标准库安全更新，Agent 本次同步重新构建；以后各自按自己的版本递增，不互相跟号。没有 Agent 改动则继续复用已发布的 Agent。
 
 文档版本由 `DOCS_VERSION` 独立管理并显示在文档站标题中。文档内容更新时按文档自身变化调整此文件；主控发布脚本不修改文档版本。主控发布说明更新不代表文档版本必须同步主控版本。推送文档或 `DOCS_VERSION` 到 main 后，由 Documentation 工作流验证并部署 GitHub Pages。
