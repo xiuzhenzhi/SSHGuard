@@ -4,7 +4,7 @@ title: SSHGuard 文档
 hero:
   name: SSHGuard
   text: 让每一次 SSH 登录<br>都有迹可循
-  tagline: 主控与 Agent 独立版本，按需升级；集中审计 SSH 登录、管理告警与服务器。
+  tagline: 主控、Agent 与文档独立版本，按需升级；集中审计 SSH 登录、管理告警与服务器。
   image:
     src: /sshguard.svg
     alt: SSHGuard 盾牌与终端标志
@@ -28,7 +28,7 @@ features:
     link: /docs/guides/AGENTS
     linkText: 接入服务器
   - title: 告警与通知
-    details: 关注异常登录、认证失败、服务器离线和采集异常，将通知送到你使用的渠道。
+    details: 关注异常登录、认证失败、Agent 上线、离线和采集异常，将通知送到你使用的渠道。
     link: /docs/guides/ALERTING
     linkText: 配置告警
   - title: 公网 IP 与来源国家

@@ -60,6 +60,9 @@ func (a *App) enroll(c *gin.Context) {
 		if _, e := tx.ExecContext(c.Request.Context(), a.db.Bind(`INSERT INTO agent_credentials(token_hash,server_id) VALUES(?,?)`), hash(t), id); e != nil {
 			return e
 		}
+		if e := a.agentOnline(c.Request.Context(), tx, id); e != nil {
+			return e
+		}
 		if _, e := tx.ExecContext(c.Request.Context(), a.db.Bind(`UPDATE servers SET hostname=?,distribution=?,agent_version=?,last_seen_at=?,revoked=false WHERE id=?`), in.Hostname, in.Distribution, in.Version, time.Now().UTC(), id); e != nil {
 			return e
 		}
@@ -145,6 +148,9 @@ func (a *App) recordHeartbeat(ctx context.Context, serverID, credentialHash stri
 		return errInvalidAgentMessage
 	}
 	e := a.agentTransaction(ctx, serverID, credentialHash, func(tx *sql.Tx) error {
+		if e := a.agentOnline(ctx, tx, serverID); e != nil {
+			return e
+		}
 		if ipaddress.Public(in.SourceIP) {
 			var previous string
 			err := tx.QueryRowContext(ctx, a.db.Bind(`SELECT public_ip FROM server_network WHERE server_id=?`), serverID).Scan(&previous)

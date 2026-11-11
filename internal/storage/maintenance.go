@@ -59,7 +59,7 @@ func (d *DB) Usage(ctx context.Context) (int64, error) {
 }
 
 // These are application-owned tables, never user-supplied identifiers or all tables in a shared schema.
-var maintenanceTables = []string{"schema_migrations", "users", "sessions", "login_attempts", "servers", "agent_enrollments", "agent_credentials", "audit_logs", "ssh_events", "agent_health", "notification_channels", "alert_rules", "alerts", "alert_state", "notification_jobs", "agent_updates", "server_settings", "ip_allowlist", "audit_context", "login_protection", "login_guards", "login_failures", "captcha_used", "agent_install_settings", "geoip_settings", "geoip_database", "server_network", "retention_settings"}
+var maintenanceTables = []string{"schema_migrations", "users", "sessions", "login_attempts", "servers", "agent_enrollments", "agent_credentials", "audit_logs", "ssh_events", "agent_health", "notification_channels", "alert_rules", "alerts", "alert_state", "notification_jobs", "agent_updates", "server_settings", "ip_allowlist", "audit_context", "audit_actor_snapshots", "login_protection", "login_guards", "login_failures", "captcha_used", "agent_install_settings", "geoip_settings", "geoip_database", "server_network", "retention_settings"}
 
 func (d *DB) MaintenanceAction() string {
 	switch d.Driver {

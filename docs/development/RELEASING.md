@@ -32,8 +32,8 @@ v0.3.21 曾通过固定原标签的一次性流程恢复丢失的发布产物，
 同步主控 `VERSION`、API 默认版本、安装示例和发布说明；仅 Agent 输入变化时更新 `AGENT_VERSION`、API 的 `AgentVersion`、Agent 默认版本和安装器，提交并等待 CI 通过后执行：
 
 ```sh
-git tag -a v0.3.26 -m "SSHGuard 0.3.26"
-git push origin v0.3.26
+git tag -a v0.4.0 -m "SSHGuard 0.4.0"
+git push origin v0.4.0
 ```
 
 标签须与 `VERSION` 一致。包含连字符的版本会发布为预发布版。
@@ -116,3 +116,9 @@ Release 按上个标签到当前提交判断变化，仍构建并校验主控发
 ### SQLite 安装问题定向复验
 
 如果仅修复原生安装脚本，可在 Actions 的 `SQLite installation recheck` 中填写已有 CI 的运行编号。流程先确认主控、Agent、前端及构建输入没有变化，再校验并复用已有程序产物，只覆盖当前安装脚本和服务模板，执行 SQLite 的四种安装模式。它不发布版本，也不重复运行前端、Agent、MySQL 或 PostgreSQL 的独立检查；应用代码变化时会拒绝复用。
+
+## v0.4 起的版本基线
+
+主控 `VERSION` 与文档 `DOCS_VERSION` 本次为 0.4.0；Agent 本次仍为 0.3.22。下次 Agent 输入变化时，准备版本脚本将 Agent 提升到 0.4.0，以后按自己的版本递增，不跟随主控。没有 Agent 改动则继续复用已发布的 Agent。
+
+文档版本由 `DOCS_VERSION` 独立管理并显示在文档站标题中。文档内容更新时按文档自身变化调整此文件；主控发布脚本不修改文档版本。主控发布说明更新不代表文档版本必须同步主控版本。推送文档或 `DOCS_VERSION` 到 main 后，由 Documentation 工作流验证并部署 GitHub Pages。

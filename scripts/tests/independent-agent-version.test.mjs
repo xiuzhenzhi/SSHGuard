@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {pathToFileURL} from 'node:url';
 import {agentTag} from '../release/agent-version.mjs';
 
-for (const [previous,changed,expected] of [['0.3.20',true,'0.3.21'],['0.3.21',false,'0.3.21'],['0.3.21',true,'0.3.22']]) {
+for (const [previous,changed,expected] of [['0.3.20',true,'0.4.0'],['0.3.22',false,'0.3.22'],['0.3.22',true,'0.4.0'],['0.4.0',true,'0.4.1'],['0.4.1',false,'0.4.1']]) {
  test(`controller 0.3.23, Agent ${previous}, changed=${changed} => ${expected}`,()=>{
   const dir=mkdtempSync(join(tmpdir(),'sshguard-independent-'));
   const git=(...args)=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
@@ -25,7 +25,7 @@ for (const [previous,changed,expected] of [['0.3.20',true,'0.3.21'],['0.3.21',fa
    git('init','-b','main');git('config','user.name','Test');git('config','user.email','test@example.invalid');
    git('add','.');git('commit','-m','initial');git('tag',agentTag(previous));git('tag','v0.3.22');
    // A controller tag with the next Agent version already exists. It must not be used for Agent downloads or block its version.
-   if(previous==='0.3.20')git('tag','v0.3.21');
+   if(previous==='0.3.20')git('tag','v0.4.0');
    put(changed?'internal/agent/feature.go':'internal/api/feature.go','package feature\n');
    git('add','.');git('commit','-m','feature');
    put('.git/mock.mjs',`import cp from 'node:child_process';import {syncBuiltinESMExports} from 'node:module';const real=cp.execFileSync;cp.execFileSync=(cmd,args,opts)=>cmd==='gh'?JSON.stringify([[{tag_name:'v0.3.22'}]]):real(cmd,args,opts);syncBuiltinESMExports();`);
