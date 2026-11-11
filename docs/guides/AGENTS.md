@@ -39,8 +39,6 @@ apk add --no-cache curl ca-certificates
 
 更新保留身份、上报间隔和队列。失败时先查看日志，再重新发起。
 
-Windows 安装及自动更新遵循系统 PowerShell 执行策略，不自动绕过或修改策略；受企业策略限制时，请由管理员允许运行受信任的本地脚本。只接受本安装创建的当前维护任务，其他格式或其他安装的同名任务会被拒绝。
-
 | 系统 | 更新任务与日志 |
 |---|---|
 | Ubuntu / Debian | `journalctl -u sshguard-agent-update` |
@@ -82,6 +80,7 @@ Linux 程序和管理脚本分别位于 `/opt/SSHGuard/Agent/sshguard-agent-bin`
 - Linux 优先读取 journal，其次读取认证日志文件；采集 SSH 和 PAM `login` 控制台认证。可在 `agent.json` 中用 `log_file` 指定认证日志。
 - Windows 读取 `OpenSSH/Operational`、`Security` 的 RDP / 控制台登录和 `Application` 的 RealVNC / UltraVNC 事件。配置 `log_file` 时使用该文件代替 Windows 事件通道。
 - VNC 软件日志、权限和覆盖边界见 [远程登录采集](REMOTE-LOGINS.md)。
+- Windows 还采集 `Microsoft-Windows-TerminalServices-LocalSessionManager/Operational` 事件 25，将 RDP 会话重连作为成功登录上报。新版安装 / 更新脚本会添加对应通道读取权限。
 - 首次从日志末尾开始采集，重启后继续读取；离线事件暂存本地，队列上限 10,000 条。
 - Linux 配置：`/opt/SSHGuard/Agent/agent.json`；状态：`/opt/SSHGuard/Agent/sshguard-agent/`。
 - Windows 配置：`%ProgramData%\SSHGuard\Agent\agent.json`；状态：`%ProgramData%\SSHGuard\Agent\sshguard-agent\`。

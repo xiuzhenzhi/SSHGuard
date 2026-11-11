@@ -1,3 +1,20 @@
+# SSHGuard Agent v0.4.1
+
+## 更新内容
+
+- 支持 Windows RDP 会话重连成功记录，采集用户名、时间及可用的来源 IP。
+- 优化本地持久队列：缓存附加日志源游标，跳过无变化写入，减少上传批次读取时的内存分配。
+- 保留事件与游标原子提交、离线持久化、确认后删除及重启恢复机制。
+- 更新跨平台构建大小、运行占用和数据库页复用的验证记录。
+
+提供 Linux / Windows 的 amd64、arm64 程序及 SHA-256 校验文件。
+
+已有安装请使用更新命令，保留配置和待传队列。新增 RDP 重连日志源从首次启动时的末尾开始采集，不补报历史记录。
+
+[安装与更新指南](https://xiuzhenzhi.github.io/SSHGuard/docs/guides/AGENTS) · [性能验证](https://xiuzhenzhi.github.io/SSHGuard/docs/development/AGENT-PERFORMANCE)
+
+---
+
 # SSHGuard v0.4.0
 
 - 优化大数据量概览查询：增加覆盖索引，分离统计缓存锁，减少趋势查询对其他概览请求的阻塞。

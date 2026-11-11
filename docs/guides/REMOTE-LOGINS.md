@@ -17,6 +17,8 @@
 
 ## Windows
 
+RDP 会话重连还会读取 `Microsoft-Windows-TerminalServices-LocalSessionManager/Operational` 的事件 25，按 `rdp.login` 成功事件上报用户名、事件时间和可用的来源 IP；标记为 `LOCAL` 的本地重连不采集。该通道首次从日志末尾开始，不补报升级前的重连。更新时须执行新版 Windows 更新脚本，为服务添加此通道的读取权限；仅替换程序文件不会补齐权限。
+
 RDP 使用 Security 4624 / 4625 的 LogonType 10、12；控制台使用 2、11，并排除系统、窗口管理器等账户。不把 Type 3 网络认证失败统称为 RDP 失败，因为它也可能来自 SMB 等服务。因此部分 NLA 阶段失败不在本次采集范围。
 
 系统需在“高级审核策略配置 → 登录/注销 → 审核登录”中启用成功和失败审核。Agent 不修改域策略或本机审核策略；没有生成的审计事件无法补采。重新执行新版 Windows 安装 / 更新命令，会为 `NT SERVICE\SSHGuardAgent` 增加 OpenSSH、Security、Application 三个通道的读取权限。仅替换二进制不会补齐权限。

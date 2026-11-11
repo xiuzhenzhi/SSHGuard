@@ -141,6 +141,41 @@ type spool struct {
 	queued, rejected int
 	current          cursor
 	cursorErr        error
+	sources          map[string]cursor
+}
+
+// Bound retained metadata even when discovered log paths change over time.
+const sourceCursorCacheLimit = 64
+
+func (s *spool) cacheSource(source string, c cursor) {
+	if s.sources == nil {
+		s.sources = make(map[string]cursor)
+	}
+	if _, exists := s.sources[source]; !exists && len(s.sources) >= sourceCursorCacheLimit {
+		for key := range s.sources {
+			delete(s.sources, key)
+			break
+		}
+	}
+	s.sources[source] = c
+}
+
+// Caller holds s.mu. Cache only valid, committed positions.
+func (s *spool) sourcePosition(source string) (cursor, error) {
+	if c, ok := s.sources[source]; ok {
+		return c, nil
+	}
+	var c cursor
+	err := s.db.View(func(tx *bolt.Tx) error {
+		if raw := tx.Bucket([]byte("meta")).Get([]byte("cursor:" + source)); raw != nil {
+			return json.Unmarshal(raw, &c)
+		}
+		return nil
+	})
+	if err == nil {
+		s.cacheSource(source, c)
+	}
+	return c, err
 }
 
 func (s *spool) bindIdentity(cfg Config) error {
@@ -188,6 +223,7 @@ func (s *spool) bindIdentity(cfg Config) error {
 	if rebound {
 		s.queued, s.rejected = 0, 0
 		s.current, s.cursorErr = cursor{}, nil
+		s.sources = nil
 	}
 	if reset {
 		log.Print("New Agent registration or server identity detected; old local queue, rejected events and collector cursor cleared")
@@ -229,17 +265,17 @@ func (s *spool) position() (cursor, error) {
 
 func (s *spool) positionFor(source string) (cursor, error) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 	if source != "" {
-		var c cursor
-		err := s.db.View(func(tx *bolt.Tx) error {
-			if raw := tx.Bucket([]byte("meta")).Get([]byte("cursor:" + source)); raw != nil {
-				return json.Unmarshal(raw, &c)
-			}
-			return nil
-		})
-		return c, err
+		c, ok := s.sources[source]
+		s.mu.RUnlock()
+		if ok {
+			return c, nil
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.sourcePosition(source)
 	}
+	defer s.mu.RUnlock()
 	return s.current, s.cursorErr
 }
 
@@ -256,6 +292,15 @@ func (s *spool) appendFor(source string, events []SSHEvent, c cursor) error {
 			return s.cursorErr
 		}
 		if s.current == c {
+			return nil
+		}
+	}
+	if source != "" && len(events) == 0 {
+		previous, err := s.sourcePosition(source)
+		if err != nil {
+			return err
+		}
+		if previous == c {
 			return nil
 		}
 	}
@@ -293,6 +338,8 @@ func (s *spool) appendFor(source string, events []SSHEvent, c cursor) error {
 		s.queued += len(events)
 		if source == "" {
 			s.current, s.cursorErr = c, nil
+		} else {
+			s.cacheSource(source, c)
 		}
 	}
 	return err
@@ -304,10 +351,11 @@ type queued struct {
 }
 
 func (s *spool) batch() ([]queued, error) {
-	if q, _ := s.counts(); q == 0 {
+	q, _ := s.counts()
+	if q == 0 {
 		return nil, nil
 	}
-	items := []queued{}
+	items := make([]queued, 0, min(q, 100))
 	e := s.db.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket([]byte("queue")).Cursor()
 		for k, v := c.First(); k != nil && len(items) < 100; k, v = c.Next() {

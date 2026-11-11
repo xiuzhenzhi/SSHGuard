@@ -22,8 +22,8 @@ func TestInstallCommandsPlatforms(t *testing.T) {
 	if !strings.Contains(commands["windows"], "--tlsv1.2") || !strings.Contains(commands["windows"], "$LASTEXITCODE -ne 0") {
 		t.Fatal("Windows bootstrap must enable TLS and propagate failure")
 	}
-	if strings.Contains(commands["windows"], "ExecutionPolicy") {
-		t.Fatal("generated command must respect the current execution policy")
+	if !strings.Contains(commands["windows"], "-ExecutionPolicy RemoteSigned -File") || strings.Contains(commands["windows"], "Set-ExecutionPolicy") {
+		t.Fatal("generated command must use process-scoped RemoteSigned only")
 	}
 	if powershellQuote("a'b") != "'a''b'" {
 		t.Fatal("PowerShell quote escaping")

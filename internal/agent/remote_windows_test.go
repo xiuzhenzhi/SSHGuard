@@ -14,6 +14,7 @@ func TestWindowsRemoteQueries(t *testing.T) {
 	// A deliberately unreachable record ID checks native XPath support without
 	// retrieving or logging any actual machine authentication records.
 	for _, tc := range []struct{ channel, query string }{
+		{rdpSessionChannel, rdpReconnectQuery},
 		{"Security", "System[(EventID=4624 or EventID=4625)] and EventData[Data[@Name='LogonType']='2' or Data[@Name='LogonType']='10' or Data[@Name='LogonType']='11' or Data[@Name='LogonType']='12']"},
 		{"Application", "System[Provider[@Name='VNC Server'] or Provider[@Name='UltraVNC']]"},
 	} {
@@ -46,6 +47,55 @@ func TestWindowsRemoteLogonTypes(t *testing.T) {
 		}
 		if ok && tc.logon == "10" && (e.Username != `HOST\Administrator` || e.IP != "192.0.2.8" || e.Port != 48200) {
 			t.Fatal("RDP fields", e)
+		}
+	}
+}
+
+func TestWindowsReconnect(t *testing.T) {
+	at := time.Date(2026, 11, 11, 10, 1, 41, 0, time.UTC)
+	for _, tc := range []struct {
+		address, ip string
+		want        bool
+	}{
+		{"::ffff:192.0.2.8", "192.0.2.8", true},
+		{"2001:db8::8", "2001:db8::8", true},
+		{"", "", true}, {"-", "", true}, {"0.0.0.0", "", true},
+		{"LOCAL", "", false},
+	} {
+		raw := fmt.Sprintf(`<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System><Provider Name="Microsoft-Windows-TerminalServices-LocalSessionManager"/><EventID>25</EventID><EventRecordID>42</EventRecordID><TimeCreated SystemTime="2026-11-11T10:01:41Z"/></System><UserData><EventXML xmlns="Event_NS"><User>HOST\Administrator</User><SessionID>2</SessionID><Address>%s</Address></EventXML></UserData></Event>`, tc.address)
+		var record windowsEvent
+		if err := xml.Unmarshal([]byte(raw), &record); err != nil {
+			t.Fatal(err)
+		}
+		event, ok := parseWindowsReconnect(record, at)
+		if ok != tc.want {
+			t.Fatalf("address %q: accepted=%v", tc.address, ok)
+		}
+		if !ok {
+			continue
+		}
+		if event.Type != "rdp.login" || event.Outcome != "success" || event.Username != `HOST\Administrator` || event.IP != tc.ip || event.Port != 0 || !event.At.Equal(at) {
+			t.Fatalf("unexpected reconnect: %+v", event)
+		}
+		again, _ := parseWindowsReconnect(record, at)
+		if event.ID != again.ID {
+			t.Fatal("unstable event ID")
+		}
+		record.System.RecordID++
+		next, _ := parseWindowsReconnect(record, at)
+		if event.ID == next.ID {
+			t.Fatal("separate reconnects share event ID")
+		}
+		for _, id := range []int{21, 24, 40, 4624} {
+			record.System.EventID = id
+			if _, ok := parseWindowsReconnect(record, at); ok {
+				t.Fatalf("accepted event %d", id)
+			}
+		}
+		record.System.EventID = 25
+		record.System.Provider.Name = "Other"
+		if _, ok := parseWindowsReconnect(record, at); ok {
+			t.Fatal("accepted wrong provider")
 		}
 	}
 }

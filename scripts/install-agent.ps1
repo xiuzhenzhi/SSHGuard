@@ -6,7 +6,7 @@ param(
     [switch]$Update,
     [switch]$AllowInsecureHttp
 )
-$ReleaseVersion = '0.4.0'
+$ReleaseVersion = '0.4.1'
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Write-Output "`nSSHGuard Agent · 安装与更新"
@@ -95,7 +95,7 @@ function Initialize-CollectorAccess {
     $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($serviceIdentity,'Modify','ContainerInherit,ObjectInherit','None','Allow')))
     Set-Acl -LiteralPath $state -AclObject $acl
     # Grant channel read permission only to this service SID.
-    foreach ($channelName in @('OpenSSH/Operational', 'Security', 'Application')) {
+    foreach ($channelName in @('OpenSSH/Operational', 'Security', 'Application', 'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational')) {
     $channel = $null
     try {
         $channel = New-Object System.Diagnostics.Eventing.Reader.EventLogConfiguration($channelName)
@@ -120,6 +120,7 @@ function Test-FixedUpdaterTask($Task, [string]$Shell, [string]$Runner) {
     if (-not $Task) { return $true }
     $allowedArguments = @(
         ('-NoProfile -NonInteractive -File "{0}"' -f $Runner)
+        ('-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "{0}"' -f $Runner)
     )
     return $Task.Actions.Count -eq 1 -and $Task.Actions[0].Execute -eq $Shell -and $allowedArguments -contains $Task.Actions[0].Arguments
 }
@@ -151,13 +152,15 @@ try {
     Protect-File $localInstaller
     Protect-File $runner
     $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $arguments = '-NoProfile -NonInteractive -File "{0}"' -f $runner
+    # Process-scoped policy also applies when SYSTEM has the default Restricted policy.
+    # Group Policy still takes precedence; no machine/user policy is changed.
+    $arguments = '-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "{0}"' -f $runner
     $existingTask = Get-ScheduledTask -TaskName SSHGuardAgentUpdate -ErrorAction SilentlyContinue
     if (-not (Test-FixedUpdaterTask $existingTask $shell $runner)) { throw '同名更新任务属于其他安装，请先核对任务配置。' }
     $action = New-ScheduledTaskAction -Execute $shell -Argument $arguments
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-    $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 9)
+    $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 9) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
     Register-ScheduledTask -TaskName SSHGuardAgentUpdate -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 }
 Protect-Directory $configDir
@@ -204,6 +207,7 @@ try {
         if ($installed.PathName -ne $expectedCommand) { throw '同名服务属于其他安装，请先核对服务路径。' }
         if ($Update -and (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -eq $expected) {
             Protect-File $config
+            Initialize-CollectorAccess
             if (-not $wasRunning) { Start-Service -Name SSHGuardAgent; (Get-Service SSHGuardAgent).WaitForStatus('Running',[TimeSpan]::FromSeconds(30)) }
             Initialize-FixedUpdater
             Write-Output '[完成] 已是最新版本，服务运行正常。'

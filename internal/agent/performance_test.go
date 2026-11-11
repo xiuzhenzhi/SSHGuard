@@ -56,6 +56,56 @@ func BenchmarkSpoolPosition(b *testing.B) {
 	}
 }
 
+func BenchmarkSpoolSecondary(b *testing.B) {
+	s, err := openSpool(b.TempDir())
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer s.db.Close()
+	c := cursor{Kind: "file:vnc", Position: "42", At: time.Now().UTC()}
+	if err = s.appendFor("vnc:test", nil, c); err != nil {
+		b.Fatal(err)
+	}
+	b.Run("position", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			if _, err := s.positionFor("vnc:test"); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("unchanged", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			if err := s.appendFor("vnc:test", nil, c); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkSpoolBatch(b *testing.B) {
+	s, err := openSpool(b.TempDir())
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer s.db.Close()
+	events := make([]SSHEvent, 100)
+	for i := range events {
+		events[i], _ = parseSSH("Accepted password for user from 192.0.2.1 port 22 ssh2", "fixture", time.Now().UTC())
+	}
+	if err = s.append(events, cursor{}); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if _, err := s.batch(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkIdleFilePoll(b *testing.B) {
 	dir := b.TempDir()
 	path := filepath.Join(dir, "auth.log")

@@ -66,7 +66,7 @@ func updateCommand(cfg Config, task updateTask) (string, []string, error) {
 		return "", nil, fmt.Errorf("invalid fixed update request")
 	}
 	if runtime.GOOS == "windows" {
-		args := []string{"-NoProfile", "-NonInteractive", "-File", filepath.Join(os.Getenv("ProgramData"), "SSHGuard", "Agent", "sshguard", "update-agent.ps1"), "-Endpoint", cfg.Endpoint, "-Update"}
+		args := []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned", "-File", filepath.Join(os.Getenv("ProgramData"), "SSHGuard", "Agent", "sshguard", "update-agent.ps1"), "-Endpoint", cfg.Endpoint, "-Update"}
 		if cfg.AllowInsecureHTTP {
 			args = append(args, "-AllowInsecureHttp")
 		}

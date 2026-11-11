@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -17,6 +18,9 @@ func TestFixedUpdateCommand(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(strings.Join(args, " ")), "bypass") {
 		t.Fatal("updater overrides the administrator's execution policy")
+	}
+	if runtime.GOOS == "windows" && !strings.Contains(strings.Join(args, " "), "-ExecutionPolicy RemoteSigned -File") {
+		t.Fatal("Windows updater needs process-scoped script policy")
 	}
 	for _, invalid := range []string{";whoami", "$(id)", "https://evil.test/payload", "../payload", "0.3.2\ncommand", "1.2.3-" + strings.Repeat("a", 32)} {
 		task.Version = invalid

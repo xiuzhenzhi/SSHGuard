@@ -12,6 +12,28 @@ import (
 
 func platformJournalAvailable() bool { return false }
 
+const rdpSessionChannel = "Microsoft-Windows-TerminalServices-LocalSessionManager/Operational"
+const rdpReconnectQuery = "System[Provider[@Name='Microsoft-Windows-TerminalServices-LocalSessionManager'] and EventID=25]"
+
+func parseWindowsReconnect(record windowsEvent, at time.Time) (SSHEvent, bool) {
+	if record.System.Provider.Name != "Microsoft-Windows-TerminalServices-LocalSessionManager" || record.System.EventID != 25 {
+		return SSHEvent{}, false
+	}
+	data := record.UserData.Event
+	// Local console reconnections are not remote desktop logins.
+	if strings.EqualFold(strings.TrimSpace(data.Address), "LOCAL") {
+		return SSHEvent{}, false
+	}
+	e := loginEvent("rdp", "success", fmt.Sprintf("windows|%s|%d|%s", rdpSessionChannel, record.System.RecordID, record.System.Time.Value), at)
+	if data.User != "-" {
+		e.Username = data.User
+	}
+	if addr, err := netip.ParseAddr(data.Address); err == nil && !addr.IsUnspecified() {
+		e.IP = addr.Unmap().String()
+	}
+	return e, true
+}
+
 func parseWindowsLogin(record windowsEvent, at time.Time) (SSHEvent, bool) {
 	if record.System.Provider.Name != "Microsoft-Windows-Security-Auditing" || (record.System.EventID != 4624 && record.System.EventID != 4625) {
 		return SSHEvent{}, false
@@ -112,6 +134,8 @@ func collectWindowsRemote(ctx context.Context, s *spool, channel, query string) 
 		var ok bool
 		if channel == "Security" {
 			event, ok = parseWindowsLogin(record, at)
+		} else if channel == rdpSessionChannel {
+			event, ok = parseWindowsReconnect(record, at)
 		} else {
 			format := ""
 			switch record.System.Provider.Name {
@@ -138,5 +162,9 @@ func collectRemotePlatform(ctx context.Context, s *spool) (time.Time, error) {
 	if at.After(last) {
 		last = at
 	}
-	return last, errors.Join(e1, e2)
+	at, e3 := collectWindowsRemote(ctx, s, rdpSessionChannel, rdpReconnectQuery)
+	if at.After(last) {
+		last = at
+	}
+	return last, errors.Join(e1, e2, e3)
 }

@@ -43,6 +43,12 @@ type windowsEvent struct {
 	Data struct {
 		Values []windowsData `xml:"Data"`
 	} `xml:"EventData"`
+	UserData struct {
+		Event struct {
+			User    string `xml:"User"`
+			Address string `xml:"Address"`
+		} `xml:"EventXML"`
+	} `xml:"UserData"`
 	Render struct {
 		Message string `xml:"Message"`
 	} `xml:"RenderingInfo"`
