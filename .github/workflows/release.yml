@@ -4,6 +4,11 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
+      full_validation:
+        description: '完整构建与安装验证；无法复用已发布前端时可配合 existing_tag 重试'
+        required: false
+        type: boolean
+        default: false
       version:
         description: '可选：留空时根据当前分支的 GitHub Release 自动递增补丁版本；例如 0.3.27 或 0.4.0-rc.1'
         required: false
@@ -111,7 +116,7 @@ jobs:
     with:
       source_ref: ${{ needs.verify.outputs.sha }}
       full_validation: true
-      selective_release: true
+      selective_release: ${{ !inputs.full_validation }}
   publish:
     name: Publish verified release
     needs: [verify, build]
