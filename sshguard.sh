@@ -591,7 +591,7 @@ case "${1:-}" in
         if [ "$(id -u)" -ne 0 ]; then exec sudo sh "$0" "$@"; fi
         deploy_platform "$@"; exit $? ;;
 esac
-version=${SSHGUARD_VERSION:-v0.4.0}
+version=${SSHGUARD_VERSION:-v0.4.1}
 for arg in "$@"; do
     if [ "$arg" = --update ] && [ -z "${SSHGUARD_VERSION:-}" ]; then version=latest; fi
 done

@@ -30,8 +30,8 @@
 同步主控 `VERSION`、API 默认版本、安装示例和发布说明；仅 Agent 输入变化时更新 `AGENT_VERSION`、API 的 `AgentVersion`、Agent 默认版本和安装器，提交并等待 CI 通过后执行：
 
 ```sh
-git tag -a v0.4.0 -m "SSHGuard 0.4.0"
-git push origin v0.4.0
+git tag -a v0.4.1 -m "SSHGuard 0.4.1"
+git push origin v0.4.1
 ```
 
 标签须与 `VERSION` 一致。包含连字符的版本会发布为预发布版。
