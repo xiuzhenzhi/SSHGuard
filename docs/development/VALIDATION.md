@@ -2,7 +2,7 @@
 
 ## 发布验证
 
-仅保留 v0.3.20 及之后版本的发布资料。各版本的发布说明和产物见 [GitHub Releases](https://github.com/xiuzhenzhi/SSHGuard/releases)，验证结果以对应的 [Actions 运行记录](https://github.com/xiuzhenzhi/SSHGuard/actions)为准。
+仅保留 v0.3.24 及之后版本的发布资料。各版本的发布说明和产物见 [GitHub Releases](https://github.com/xiuzhenzhi/SSHGuard/releases)，验证结果以对应的 [Actions 运行记录](https://github.com/xiuzhenzhi/SSHGuard/actions)为准。
 
 ## 文档站
 

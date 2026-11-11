@@ -4,10 +4,10 @@
 
 默认直接拉取 GitHub Container Registry 中的预构建镜像，支持 Linux amd64 / arm64：
 
-- 主控：`ghcr.io/xiuzhenzhi/sshguard-api:v0.3.21`
-- 前端：`ghcr.io/xiuzhenzhi/sshguard-web:v0.3.21`
+- 主控：`ghcr.io/xiuzhenzhi/sshguard-api:v0.4.0`
+- 前端：`ghcr.io/xiuzhenzhi/sshguard-web:v0.4.0`
 
-两者使用相同版本标签；可在 `.env` 设置 `SSHGUARD_IMAGE_TAG=v0.3.21`。镜像由已发布且校验通过的安装包组装，包含对应版本的 Agent 下载文件。
+两者使用相同版本标签；可在 `.env` 设置 `SSHGUARD_IMAGE_TAG=v0.4.0`。镜像由已发布且校验通过的安装包组装，包含对应版本的 Agent 下载文件。
 
 ```sh
 git clone https://github.com/xiuzhenzhi/SSHGuard.git

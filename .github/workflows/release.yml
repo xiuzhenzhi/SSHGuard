@@ -9,7 +9,7 @@ on:
         required: false
         type: string
       existing_tag:
-        description: '仅重试尚未发布的既有标签（例如 v0.3.21）；使用当前工作流验证原标签代码，不改写标签。与 version 互斥。'
+        description: '仅重试尚未发布的既有标签（例如 v0.4.1）；使用当前工作流验证原标签代码，不改写标签。与 version 互斥。'
         required: false
         type: string
 permissions:
