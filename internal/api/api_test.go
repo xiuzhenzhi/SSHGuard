@@ -74,6 +74,12 @@ func TestIntegration(t *testing.T) {
 	if e = storage.Migrate(ctx, db); e != nil {
 		t.Fatal("interrupted index migration retry", e)
 	}
+	if _, e = db.Exec(ctx, `DELETE FROM schema_migrations WHERE version=?`, "013_dashboard_indexes.sql"); e != nil {
+		t.Fatal(e)
+	}
+	if e = storage.Migrate(ctx, db); e != nil {
+		t.Fatal("dashboard index migration retry", e)
+	}
 	if driver == "mysql" {
 		var zone, charset, version string
 		if e = db.Row(ctx, `SELECT @@session.time_zone,@@character_set_connection,VERSION()`).Scan(&zone, &charset, &version); e != nil || zone != "+00:00" || charset != "utf8mb4" {
@@ -323,6 +329,7 @@ func TestIntegration(t *testing.T) {
 		t.Fatal("expired session retained", e)
 	}
 	call("GET", "/auth/me", nil, session, "", false, 200)
+	testUserLifecycle(t, app, session, call)
 	testServerGroup(t, app, session, call)
 	testServerDeletion(t, app, session, call)
 	call("POST", "/servers/"+id+"/revoke", map[string]string{}, session, "", true, 200)

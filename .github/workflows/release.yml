@@ -140,7 +140,8 @@ jobs:
           node scripts/release/publish-agent.mjs
           flags=()
           if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
-          gh release create "$RELEASE_TAG" dist/release/* --verify-tag "${flags[@]}" \
+          node scripts/release/controller-assets.mjs
+          gh release create "$RELEASE_TAG" dist/controller-release/sshguard-linux-amd64.tar.gz dist/controller-release/sshguard-linux-arm64.tar.gz dist/controller-release/sshguard.sh dist/controller-release/SHA256SUMS --verify-tag "${flags[@]}" \
             --title "SSHGuard $RELEASE_TAG" --notes-file docs/RELEASE-NOTES.md
   containers:
     name: Publish Docker images

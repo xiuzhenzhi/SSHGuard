@@ -12,7 +12,7 @@ for (const mode of ['legacy','unchanged','changed']) test('release Agent version
   try {
     for (const folder of ['internal/agent', 'internal/api', 'scripts', 'docs', 'docs/guides', 'docs/deployment', 'docs/development']) mkdirSync(join(dir, folder), { recursive: true });
     const files = {
-      VERSION: '0.3.1\n', 'internal/agent/run.go': 'var version = "0.3.1"\n',
+      DOCS_VERSION: '0.4.0\n', VERSION: '0.3.1\n', 'internal/agent/run.go': 'var version = "0.3.1"\n',
       'internal/api/routes.go': 'var Version = "0.3.1"\nvar AgentVersion = "0.3.1"\n',
       'sshguard.sh': 'version=${SSHGUARD_VERSION:-v0.3.1}\n',
       'scripts/install-agent.sh': "RELEASE_VERSION='0.3.1'\n",
@@ -45,12 +45,13 @@ const real = cp.execFileSync; cp.execFileSync = (cmd, args, options) => cmd === 
     });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(readFileSync(join(dir, 'VERSION'), 'utf8'), '0.3.2\n');
+    assert.equal(readFileSync(join(dir, 'DOCS_VERSION'), 'utf8'), '0.4.0\n');
     assert.match(readFileSync(output, 'utf8'), /tag=v0\.3\.2/);
     assert.match(readFileSync(join(dir, 'README.md'), 'utf8'), /SQLite 从 v0\.3\.1.*固定版本 `v0\.3\.2`/);
     assert.match(readFileSync(join(dir, 'internal/api/routes.go'), 'utf8'), /"0\.3\.2"/);
-    assert.ok(readFileSync(join(dir, 'scripts/install-agent.sh'), 'utf8').includes("RELEASE_VERSION='"+(mode==='unchanged'?'0.3.1':'0.3.2')+"'"));
-    assert.equal(readFileSync(join(dir,'AGENT_VERSION'),'utf8').trim(), mode==='unchanged'?'0.3.1':'0.3.2');
-    assert.ok(readFileSync(join(dir, 'scripts/install-agent.ps1'), 'utf8').includes("$ReleaseVersion = '"+(mode==='unchanged'?'0.3.1':'0.3.2')+"'"));
+    assert.ok(readFileSync(join(dir, 'scripts/install-agent.sh'), 'utf8').includes("RELEASE_VERSION='"+(mode==='unchanged'?'0.3.1':'0.4.0')+"'"));
+    assert.equal(readFileSync(join(dir,'AGENT_VERSION'),'utf8').trim(), mode==='unchanged'?'0.3.1':'0.4.0');
+    assert.ok(readFileSync(join(dir, 'scripts/install-agent.ps1'), 'utf8').includes("$ReleaseVersion = '"+(mode==='unchanged'?'0.3.1':'0.4.0')+"'"));
     assert.match(readFileSync(join(dir, 'CHANGELOG.md'), 'utf8'), /## 0\.3\.2/);
     assert.match(readFileSync(join(dir, 'docs/RELEASE-NOTES.md'), 'utf8'), /^# SSHGuard v0\.3\.2/);
     if (mode === 'changed') assert.match(readFileSync(join(dir, 'docs/RELEASE-NOTES.md'), 'utf8'), /旧目录需要卸载后重新安装/);
