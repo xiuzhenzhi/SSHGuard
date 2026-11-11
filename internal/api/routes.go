@@ -18,6 +18,7 @@ import (
 )
 
 type App struct {
+	agentRelease   agentReleaseState
 	maintenance    databaseMaintenance
 	db             *storage.DB
 	cfg            Config
@@ -97,7 +98,8 @@ func (a *App) Router() *gin.Engine {
 		if !valid {
 			return
 		}
-		ok(c, gin.H{"commands": updateCommands(origin), "version": AgentVersion, "endpoint": origin, "insecure_http": strings.HasPrefix(origin, "http://")})
+		version := a.availableAgentVersion()
+		ok(c, gin.H{"commands": updateCommands(origin, version), "version": version, "endpoint": origin, "insecure_http": strings.HasPrefix(origin, "http://")})
 	})
 	web.GET("/settings/database", role("admin"), a.databaseSettings)
 	web.PATCH("/settings/database", role("admin"), a.saveDatabaseSettings)
@@ -105,7 +107,7 @@ func (a *App) Router() *gin.Engine {
 	web.GET("/dashboard/summary", a.summary)
 	web.GET("/agent/uninstall-commands", role("admin"), func(c *gin.Context) {
 		if origin, valid := a.agentOrigin(c); valid {
-			ok(c, gin.H{"commands": uninstallCommands(origin)})
+			ok(c, gin.H{"commands": uninstallCommands(origin, a.availableAgentVersion())})
 		}
 	})
 	web.GET("/dashboard/overview", a.overview)

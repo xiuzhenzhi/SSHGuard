@@ -26,7 +26,7 @@ func (a *App) servers(c *gin.Context) {
 		rows = rows[:size]
 	}
 	for _, row := range rows {
-		row["available_agent_version"] = AgentVersion
+		row["available_agent_version"] = a.availableAgentVersion()
 	}
 	a.decorateServers(c.Request.Context(), rows)
 	ok(c, gin.H{"items": rows, "has_more": more})
@@ -42,7 +42,7 @@ func (a *App) server(c *gin.Context) {
 		return
 	}
 	for _, row := range rows {
-		row["available_agent_version"] = AgentVersion
+		row["available_agent_version"] = a.availableAgentVersion()
 	}
 	a.decorateServers(c.Request.Context(), rows)
 	ok(c, rows[0])
@@ -166,12 +166,16 @@ func (a *App) deleteServer(c *gin.Context) {
 func shellQuote(s string) string      { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 func powershellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 
-func agentAsset(name string) string {
+func agentAsset(name string, versions ...string) string {
+	version := AgentVersion
+	if len(versions) > 0 {
+		version = versions[0]
+	}
 	prefix := "agent-v"
-	if legacyAgentUpdater(AgentVersion) {
+	if legacyAgentUpdater(version) {
 		prefix = "v"
 	}
-	return "https://github.com/xiuzhenzhi/SSHGuard/releases/download/" + url.PathEscape(prefix+AgentVersion) + "/" + url.PathEscape(name)
+	return "https://github.com/xiuzhenzhi/SSHGuard/releases/download/" + url.PathEscape(prefix+version) + "/" + url.PathEscape(name)
 }
 
 func legacyAgentUpdater(version string) bool {
@@ -179,28 +183,28 @@ func legacyAgentUpdater(version string) bool {
 	n, _ := fmt.Sscanf(strings.TrimPrefix(version, "v"), "%d.%d.%d", &major, &minor, &patch)
 	return n == 3 && major == 0 && (minor < 3 || (minor == 3 && patch <= 20))
 }
-func installCommands(origin, t string) map[string]string {
+func installCommands(origin, t string, versions ...string) map[string]string {
 	linuxOption, windowsOption := "", ""
 	if strings.HasPrefix(origin, "http://") {
 		linuxOption, windowsOption = " --allow-insecure-http", " -AllowInsecureHttp"
 	}
 	linux := func(privilege string) string {
-		return linuxAgentCommand("install-agent.sh", " "+shellQuote(origin)+" "+shellQuote(t)+linuxOption, privilege)
+		return linuxAgentCommand("install-agent.sh", " "+shellQuote(origin)+" "+shellQuote(t)+linuxOption, privilege, versions...)
 	}
-	windows := fmt.Sprintf(`$f=Join-Path $env:TEMP ([guid]::NewGuid().ToString()+'.ps1'); $curl=Join-Path ([Environment]::SystemDirectory) 'curl.exe'; $shell=Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'; try { & $curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --max-redirs 5 --max-filesize 1048576 -fLsS %s -o $f; if ($LASTEXITCODE -ne 0) { throw 'GitHub installer download failed' }; & $shell -NoProfile -ExecutionPolicy RemoteSigned -File $f -Endpoint %s -EnrollmentToken %s%s; if ($LASTEXITCODE -ne 0) { throw 'Agent installation/update failed' } } finally { if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f } }`, powershellQuote(agentAsset("install-agent.ps1")), powershellQuote(origin), powershellQuote(t), windowsOption)
+	windows := fmt.Sprintf(`$f=Join-Path $env:TEMP ([guid]::NewGuid().ToString()+'.ps1'); $curl=Join-Path ([Environment]::SystemDirectory) 'curl.exe'; $shell=Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'; try { & $curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --max-redirs 5 --max-filesize 1048576 -fLsS %s -o $f; if ($LASTEXITCODE -ne 0) { throw 'GitHub installer download failed' }; & $shell -NoProfile -ExecutionPolicy RemoteSigned -File $f -Endpoint %s -EnrollmentToken %s%s; if ($LASTEXITCODE -ne 0) { throw 'Agent installation/update failed' } } finally { if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f } }`, powershellQuote(agentAsset("install-agent.ps1", versions...)), powershellQuote(origin), powershellQuote(t), windowsOption)
 	return map[string]string{"linux": linux("auto"), "ubuntu": linux("sudo "), "debian": linux("sudo "), "alpine": linux(""), "windows": windows}
 }
 
 // Root shells (including Alpine without sudo) run directly. Other shells use
 // sudo; the installer itself detects systemd/OpenRC and the CPU architecture.
-func linuxAgentCommand(asset, arguments, privilege string) string {
+func linuxAgentCommand(asset, arguments, privilege string, versions ...string) string {
 	run := `sh "$f"` + arguments
 	if privilege == "auto" {
 		run = fmt.Sprintf(`if [ "$(id -u)" -eq 0 ]; then %s; else sudo %s; fi`, run, run)
 	} else {
 		run = privilege + run
 	}
-	return fmt.Sprintf(`(f=$(mktemp) && trap 'rm -f "$f"' EXIT && curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --max-redirs 5 --max-filesize 1048576 -fLsS %s -o "$f" && %s)`, shellQuote(agentAsset(asset)), run)
+	return fmt.Sprintf(`(f=$(mktemp) && trap 'rm -f "$f"' EXIT && curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --max-redirs 5 --max-filesize 1048576 -fLsS %s -o "$f" && %s)`, shellQuote(agentAsset(asset, versions...)), run)
 }
 func (a *App) enrollment(c *gin.Context) {
 	var in struct {
@@ -241,19 +245,19 @@ func (a *App) enrollment(c *gin.Context) {
 		fail(c, e)
 		return
 	}
-	commands := installCommands(origin, t)
+	commands := installCommands(origin, t, a.availableAgentVersion())
 	ok(c, gin.H{"command": commands["linux"], "commands": commands, "expires_at": expires, "phase": "registration-and-heartbeat-only", "endpoint": origin, "insecure_http": strings.HasPrefix(origin, "http://")})
 }
-func updateCommands(origin string) map[string]string {
-	commands := installCommands(origin, "--update")
+func updateCommands(origin string, versions ...string) map[string]string {
+	commands := installCommands(origin, "--update", versions...)
 	commands["windows"] = strings.Replace(commands["windows"], "-EnrollmentToken '--update'", "-Update", 1)
 	return commands
 }
-func uninstallCommands(origin string) map[string]string {
+func uninstallCommands(origin string, versions ...string) map[string]string {
 	linux := func(privilege string) string {
-		return linuxAgentCommand("uninstall-agent.sh", "", privilege)
+		return linuxAgentCommand("uninstall-agent.sh", "", privilege, versions...)
 	}
-	windows := fmt.Sprintf(`$f=Join-Path $env:TEMP ([guid]::NewGuid().ToString()+'.ps1'); $curl=Join-Path ([Environment]::SystemDirectory) 'curl.exe'; $shell=Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'; try { & $curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --max-redirs 5 --max-filesize 1048576 -fLsS %s -o $f; if ($LASTEXITCODE -ne 0) { throw 'GitHub uninstaller download failed' }; & $shell -NoProfile -ExecutionPolicy RemoteSigned -File $f; if ($LASTEXITCODE -ne 0) { throw 'Agent uninstall failed' } } finally { if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f } }`, powershellQuote(agentAsset("uninstall-agent.ps1")))
+	windows := fmt.Sprintf(`$f=Join-Path $env:TEMP ([guid]::NewGuid().ToString()+'.ps1'); $curl=Join-Path ([Environment]::SystemDirectory) 'curl.exe'; $shell=Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'; try { & $curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --max-redirs 5 --max-filesize 1048576 -fLsS %s -o $f; if ($LASTEXITCODE -ne 0) { throw 'GitHub uninstaller download failed' }; & $shell -NoProfile -ExecutionPolicy RemoteSigned -File $f; if ($LASTEXITCODE -ne 0) { throw 'Agent uninstall failed' } } finally { if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f } }`, powershellQuote(agentAsset("uninstall-agent.ps1", versions...)))
 	return map[string]string{"linux": linux("auto"), "ubuntu": linux("sudo "), "debian": linux("sudo "), "alpine": linux(""), "windows": windows}
 }
 func (a *App) revoke(c *gin.Context) {

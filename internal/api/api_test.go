@@ -157,8 +157,22 @@ func TestIntegration(t *testing.T) {
 	call("POST", "/agent/heartbeat", map[string]string{"version": "0.3.20"}, "", agent, false, 200)
 	call("POST", "/servers/"+id+"/update", map[string]string{}, session, "", true, 409)
 	call("POST", "/agent/heartbeat", map[string]string{"version": "test"}, "", agent, false, 200)
+	// A separately published Agent is available without rebuilding the controller.
+	app.agentRelease.version = "99.0.0"
+	result, _ = call("GET", "/servers/"+id, nil, session, "", false, 200)
+	if result["data"].(map[string]any)["available_agent_version"] != "99.0.0" {
+		t.Fatal("server exposes compiled Agent version")
+	}
+	result, _ = call("GET", "/agent/update-commands", nil, session, "", false, 200)
+	if result["data"].(map[string]any)["version"] != "99.0.0" {
+		t.Fatal("update command version is stale")
+	}
 	result, _ = call("POST", "/servers/"+id+"/update", map[string]string{}, session, "", true, 200)
+	if result["data"].(map[string]any)["version"] != "99.0.0" {
+		t.Fatal("queued stale Agent version")
+	}
 	updateID := result["data"].(map[string]any)["request_id"].(string)
+	app.agentRelease.version = "99.0.1" // Discovery must not invalidate the pinned task.
 	otherID, otherToken := uuid.NewString(), token()
 	if _, e := db.Exec(ctx, `INSERT INTO servers(id,name) VALUES(?,?)`, otherID, "update isolation"); e != nil {
 		t.Fatal(e)
@@ -174,7 +188,7 @@ func TestIntegration(t *testing.T) {
 	call("POST", "/servers/"+id+"/update", map[string]string{}, session, "", true, 409)
 	result, _ = call("POST", "/agent/update/poll", map[string]string{}, "", agent, false, 200)
 	task := result["data"].(map[string]any)["update"].(map[string]any)
-	if task["id"] != updateID || task["version"] != AgentVersion || len(task) != 2 {
+	if task["id"] != updateID || task["version"] != "99.0.0" || len(task) != 2 {
 		t.Fatal("unexpected remote update payload", task)
 	}
 	result, _ = call("POST", "/agent/update/poll", map[string]string{}, "", agent, false, 200)
@@ -185,6 +199,8 @@ func TestIntegration(t *testing.T) {
 	call("POST", "/agent/update/result", map[string]string{"id": updateID, "status": "execute"}, "", agent, false, 400)
 	call("POST", "/agent/update/result", map[string]string{"id": updateID, "status": "success"}, "", agent, false, 200)
 	call("POST", "/agent/update/result", map[string]string{"id": updateID, "status": "success"}, "", agent, false, 400)
+	call("POST", "/agent/heartbeat", map[string]string{"version": "99.0.2"}, "", agent, false, 200)
+	call("POST", "/servers/"+id+"/update", map[string]string{}, session, "", true, 409) // Never downgrade a newer installed Agent.
 	// Agent credentials are not web sessions, and session cookies are not agent credentials.
 	call("GET", "/users", nil, "", agent, false, 401)
 	call("POST", "/agent/heartbeat", map[string]string{}, session, "", false, 401)

@@ -145,6 +145,8 @@ func (a *App) deliveryLoop(ctx context.Context) {
 func (a *App) StartWorkers(ctx context.Context) func() {
 	var wg sync.WaitGroup
 	wg.Add(1)
+	go func() { defer wg.Done(); a.agentReleaseLoop(ctx) }()
+	wg.Add(1)
 	go func() { defer wg.Done(); a.monitorLoop(ctx) }()
 	wg.Add(1)
 	go func() { defer wg.Done(); a.retentionLoop(ctx) }()
