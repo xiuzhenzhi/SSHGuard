@@ -34,7 +34,8 @@ cpSync('web/dist',`${out}/web`,{recursive:true});
 for (const name of ['install-agent.sh','install-agent.ps1','uninstall-agent.sh','uninstall-agent.ps1']) {
   let source=readFileSync(`scripts/${name}`,'utf8');
   source=source.replace(/RELEASE_VERSION='[^']+'/,()=>`RELEASE_VERSION='${agentVersion}'`).replace(/\$ReleaseVersion = '[^']+'/,()=>`$ReleaseVersion = '${agentVersion}'`);
-  writeFileSync(`${out}/web/downloads/${name}`,source);
+  source=source.replace(/\r\n/g,'\n');
+  writeFileSync(`${out}/web/downloads/${name}`,name.endsWith('.ps1')?source.replace(/\n/g,'\r\n'):source);
 }
 cpSync('deploy/native',`${out}/deploy`,{recursive:true});
 // The manifest must match the binary and Agents, including preview overrides.

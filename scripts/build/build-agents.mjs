@@ -23,5 +23,8 @@ if (agentTagExists(version) && !agentTagAtHead(version) && !process.env.SSHGUARD
   execFileSync('go',['build','-trimpath','-tags=nethttpomithttp2','-ldflags',`-s -w -X sshguard/internal/agent.version=${version}`,'-o',resolve(out,name),'./cmd/agent'],{stdio:'inherit',env:{...process.env,CGO_ENABLED:'0',GOOS:os,GOARCH:arch}});
   writeFileSync(resolve(out,`${name}.sha256`),`${createHash('sha256').update(readFileSync(resolve(out,name))).digest('hex')}  ${name}\n`);
 }
-for (const name of ['install-agent.sh','install-agent.ps1','uninstall-agent.sh','uninstall-agent.ps1']) cpSync(`scripts/${name}`,resolve(out,name));
+for (const name of ['install-agent.sh','install-agent.ps1','uninstall-agent.sh','uninstall-agent.ps1']) {
+  const source = readFileSync(`scripts/${name}`,'utf8').replace(/\r\n/g,'\n');
+  writeFileSync(resolve(out,name), name.endsWith('.ps1') ? source.replace(/\n/g,'\r\n') : source);
+}
 console.log(`Agent ${version}: linux/windows × amd64/arm64 → ${out}`);
