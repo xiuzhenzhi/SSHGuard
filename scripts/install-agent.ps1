@@ -6,7 +6,7 @@ param(
     [switch]$Update,
     [switch]$AllowInsecureHttp
 )
-$ReleaseVersion = '0.4.1'
+$ReleaseVersion = '0.4.2'
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Write-Output "`nSSHGuard Agent · 安装与更新"
