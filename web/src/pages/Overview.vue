@@ -4,7 +4,7 @@ import AnimatedNumber from '../components/AnimatedNumber.vue';
 import CountryRanking from '../components/CountryRanking.vue';
 import RecentEvents from '../components/RecentEvents.vue';
 const LoginTrend=defineAsyncComponent(()=>import('../components/LoginTrend.vue'));
-const props = defineProps<{summary: Record<string,any>, overview: Record<string,any>, admin: boolean, range:string, api:(path:string,method?:string,body?:any,signal?:AbortSignal)=>Promise<any>}>();
+const props = defineProps<{summary: Record<string,any>, overview: Record<string,any>, admin: boolean, range:string, trendLoading:boolean, api:(path:string,method?:string,body?:any,signal?:AbortSignal)=>Promise<any>}>();
 const emit = defineEmits<{navigate: [page: string],range:[value:string],showEvent:[event:Record<string,any>],allEvents:[]}>();
 const stamp = (value: string) => new Date(value).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
 const healthy = computed(() => props.overview.healthy_collectors || 0);
@@ -19,7 +19,7 @@ const percent = computed(() => props.summary.servers ? Math.min(100,healthy.valu
       <article :class="{attention:overview.unacknowledged_alerts}"><div>待处理告警 <span class="metric-icon warm">!</span></div><strong><AnimatedNumber :value="overview.unacknowledged_alerts"/></strong></article>
     </div>
     <div class="overview-grid">
-      <LoginTrend :buckets="overview.trend||[]" :range="range" @range="value=>emit('range',value)"/>
+      <LoginTrend :buckets="overview.range===range ? overview.trend||[] : []" :range="range" :loading="trendLoading && overview.range!==range" @range="value=>emit('range',value)"/>
       <section class="panel health-panel"><div class="panel-heading"><h3>采集与来源</h3><span class="subtle">运行状态</span></div><div class="health-content"><div class="health-ring" :style="{'--progress':percent+'%'}"><div><strong><AnimatedNumber :value="healthy"/></strong><small>采集正常</small></div></div><div class="health-caption">{{ summary.servers || 0 }} 台服务器中，{{ healthy }} 台正在正常采集</div><CountryRanking :api="api" :refresh-key="overview"/></div></section>
     </div>
     <div class="recent-activity-grid">

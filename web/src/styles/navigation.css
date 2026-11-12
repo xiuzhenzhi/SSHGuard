@@ -2,6 +2,35 @@
 .sidebar-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
 .console-navigation nav{min-height:0;overflow-y:auto;flex:1;margin:32px 0 20px}
 .console-navigation nav button{flex-shrink:0}
+.console-navigation .nav-group{flex-shrink:0}
+.console-navigation .nav-group-toggle{width:100%}
+.console-navigation .nav-group-toggle.group-active{color:var(--el-color-primary);font-weight:600}
+.console-navigation .nav-group-chevron{margin-left:auto;font-size:12px;transition:transform .26s cubic-bezier(.22,1,.36,1)}
+.console-navigation .nav-group-chevron.expanded{transform:rotate(180deg)}
+.console-navigation .nav-group-collapse{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;transition:grid-template-rows .26s cubic-bezier(.22,1,.36,1),opacity .18s ease,visibility 0s .26s}
+.console-navigation .is-expanded .nav-group-collapse{grid-template-rows:1fr;opacity:1;visibility:visible;transition-delay:0s}
+.console-navigation .nav-group-clip{min-height:0;overflow:hidden}
+.console-navigation .nav-group-icon{flex:0 0 18px;transform-origin:center;transition:color .2s ease,transform .18s ease}
+.console-navigation .nav-group-icon svg{transform-origin:center;transition:transform .3s cubic-bezier(.22,1,.36,1)}
+.console-navigation .nav-group-toggle:active .nav-group-icon{transform:scale(.9)}
+.console-navigation .nav-group-items{transform:translateY(-5px);transition:transform .26s cubic-bezier(.22,1,.36,1)}
+.console-navigation .is-expanded .nav-group-items{transform:translateY(0)}
+@media(prefers-reduced-motion:no-preference){
+ .console-navigation .is-expanded .nav-group-icon{animation:nav-select .3s ease-out}
+ .console-navigation .nav-group-toggle:is(:hover,:focus-visible) .nav-group-icon-monitoring svg{animation:nav-watch .55s ease-in-out}
+ .console-navigation .nav-group-toggle:is(:hover,:focus-visible) .nav-group-icon-notifications svg{animation:nav-ring .55s ease-in-out;transform-origin:50% 20%}
+ .console-navigation .nav-group-toggle:is(:hover,:focus-visible) .nav-group-icon-system svg{transform:rotate(60deg)}
+ .console-navigation .nav-group-toggle:is(:hover,:focus-visible) .nav-group-icon-security svg{animation:nav-greet .45s ease-out}
+}
+@keyframes nav-watch{0%,100%{transform:scaleY(1)}40%{transform:scaleY(.45)}65%{transform:scaleY(1.08)}}
+@keyframes nav-greet{0%,100%{transform:translateY(0)}45%{transform:translateY(-3px)}75%{transform:translateY(1px)}}
+@media(prefers-reduced-motion:reduce){
+ .console-navigation .nav-group-collapse,.console-navigation .nav-group-items,.console-navigation .nav-group-chevron,.console-navigation .nav-group-icon,.console-navigation .nav-group-icon svg{transition:none;animation:none}
+}
+.console-navigation .nav-group-items{display:flex;flex-direction:column;gap:4px;margin-top:4px;padding-left:18px}
+.console-navigation .nav-group-items button{width:100%;font-size:12px;gap:10px;padding-left:12px;padding-right:12px;min-height:42px}
+.console-navigation .nav-group-items .el-icon{font-size:16px;flex-shrink:0}
+.console-navigation nav button:focus-visible{outline-offset:-3px}
 .console-navigation .sidebar-bottom{flex-shrink:0}
 .header-location{display:flex;align-items:center;gap:10px;min-width:0}
 .breadcrumb .current-page{margin:0;color:inherit;overflow:hidden;text-overflow:ellipsis}

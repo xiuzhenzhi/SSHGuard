@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -37,41 +39,7 @@ func (a *App) overview(c *gin.Context) {
 		return
 	}
 	now := time.Now().UTC()
-	since := now.Truncate(step).Add(-time.Duration(count-1) * step)
-	buckets := make([]trendBucket, count)
-	for i := range buckets {
-		buckets[i].At = since.Add(time.Duration(i) * step)
-	}
-	expression := `FLOOR(EXTRACT(EPOCH FROM occurred_at)/3600)`
-	if a.db.Driver == "mysql" {
-		expression = `FLOOR(UNIX_TIMESTAMP(occurred_at)/3600)`
-	}
-	if a.db.Driver == "sqlite" {
-		expression = `CAST(strftime('%s',substr(occurred_at,1,19)) AS INTEGER)/3600`
-	}
-	if step == 24*time.Hour {
-		expression = strings.ReplaceAll(expression, "3600", "86400")
-	}
-	rows, e := a.db.QueryContext(c.Request.Context(), a.db.Bind(`SELECT `+expression+`,SUM(CASE WHEN outcome='success' THEN 1 ELSE 0 END),SUM(CASE WHEN outcome='failure' THEN 1 ELSE 0 END) FROM ssh_events WHERE occurred_at>=? AND occurred_at<=? GROUP BY `+expression+` ORDER BY 1`), since, now)
-	if e != nil {
-		fail(c, e)
-		return
-	}
-	for rows.Next() {
-		var hour, success, failure int64
-		if e = rows.Scan(&hour, &success, &failure); e != nil {
-			rows.Close()
-			fail(c, e)
-			return
-		}
-		i := hour - since.Unix()/int64(step/time.Second)
-		if i >= 0 && i < int64(count) {
-			buckets[i].Success = success
-			buckets[i].Failure = failure
-		}
-	}
-	e = rows.Err()
-	rows.Close()
+	buckets, e := a.loginTrend(c.Request.Context(), now, count, step)
 	if e != nil {
 		fail(c, e)
 		return
@@ -101,4 +69,37 @@ func (a *App) overview(c *gin.Context) {
 	data = gin.H{"trend": buckets, "range": rangeName, "healthy_collectors": healthy, "unacknowledged_alerts": attention, "pending_deliveries": pending, "failed_deliveries": dead, "enabled_channels": channels, "recent_alerts": alerts, "as_of": now}
 	a.publishDashboard(rangeName, data, epoch)
 	ok(c, data)
+}
+
+// Each disjoint range uses the occurred_at index, avoiding per-event timestamp
+// conversion and the temporary GROUP BY sort. UNION ALL keeps one DB round trip.
+func (a *App) loginTrend(ctx context.Context, now time.Time, count int, step time.Duration) ([]trendBucket, error) {
+	since := now.UTC().Truncate(step).Add(-time.Duration(count-1) * step)
+	buckets := make([]trendBucket, count)
+	queries := make([]string, count)
+	args := make([]any, 0, count*2)
+	for i := range buckets {
+		start := since.Add(time.Duration(i) * step)
+		end, op := start.Add(step), "<"
+		if i == count-1 {
+			end, op = now, "<="
+		}
+		buckets[i].At = start
+		queries[i] = fmt.Sprintf(`SELECT %d,COALESCE(SUM(CASE WHEN outcome='success' THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN outcome='failure' THEN 1 ELSE 0 END),0) FROM ssh_events WHERE occurred_at>=? AND occurred_at%s?`, i, op)
+		args = append(args, start, end)
+	}
+	rows, err := a.db.QueryContext(ctx, a.db.Bind(strings.Join(queries, " UNION ALL ")), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var i int
+		var success, failure int64
+		if err := rows.Scan(&i, &success, &failure); err != nil {
+			return nil, err
+		}
+		buckets[i].Success, buckets[i].Failure = success, failure
+	}
+	return buckets, rows.Err()
 }

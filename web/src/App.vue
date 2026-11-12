@@ -61,6 +61,7 @@ const serverPageSizes = [10, 20, 50, 100];
 const serverPageSize = ref(20);
 const overview = ref<Row>({});
 const trendRange=ref('24h');
+const trendLoading=ref(false);
 const management = computed(() => ['alerts','channels','rules','notifications'].includes(active.value));
 const liveState = ref('连接中');
 const refreshing = ref(false);
@@ -150,7 +151,7 @@ function clearSession() {
   responses.clear(); cancelWarm();
   navigationOpen.value = false;
   stopLive(); overview.value = {};
-  controller?.abort(); generation++; loading = false;
+  controller?.abort(); generation++; loading = false; trendLoading.value = false;
   user.value = null; rows.value = []; summary.value = {}; error.value = '';
   loginError.value='';active.value = 'dashboard'; page.value = 1; more.value = false;
   commands.value = {}; commandDialog.value = false; detail.value = null;
@@ -201,15 +202,22 @@ async function finishSetup(credentials: {username:string;password:string}) {
   });
 }
 async function signOut() {controller?.abort(); generation++; await perform(async () => {await api('/auth/logout','POST');clearSession();});}
-async function load(preferCache = false) {
+function changeTrendRange(value: string) {
+  if (value === trendRange.value) return;
+  trendRange.value = value;
+  const cached = responses.get('/dashboard/overview?range='+value);
+  if (cached) overview.value = cached;
+  void load(true, true);
+}
+async function load(preferCache = false, trendOnly = false) {
   const read = preferCache ? cachedAPI : api;
   if(user.value)writeRoute();
   controller?.abort(); controller = new AbortController(); const signal = controller.signal;
-  const request = ++generation; error.value = ''; loading = true;
+  const request = ++generation; error.value = ''; loading = true; trendLoading.value = active.value === 'dashboard';
   try {
     if (active.value === 'dashboard') {
       await Promise.all([
-        read('/dashboard/summary','GET',undefined,signal).then(value => {if (request === generation) summary.value=value;}),
+        (trendOnly ? Promise.resolve(summary.value) : read('/dashboard/summary','GET',undefined,signal)).then(value => {if (request === generation) summary.value=value;}),
         read('/dashboard/overview?range='+trendRange.value,'GET',undefined,signal).then(value => {if (request === generation) overview.value=value;}),
       ]);
       if (request === generation) rows.value=[];
@@ -222,7 +230,7 @@ async function load(preferCache = false) {
     const result = await read(listPath(), 'GET', undefined, signal);
     if (request !== generation) return; rows.value = result.items; more.value = result.has_more;
   } catch (e) {if (request === generation && !signal.aborted) error.value = (e as Error).message;}
-  finally {if (request === generation) loading = false;}
+  finally {if (request === generation) {loading = false; trendLoading.value = false;}}
 }
 function writeRoute(mode:'push'|'replace'='replace') {
   const params=new URLSearchParams();
@@ -386,7 +394,7 @@ onUnmounted(() => {stopLive();cancelWarm();responses.clear();clearInterval(timer
     <div class="main"><header class="console-header"><div class="header-location"><button v-if="isMobile" class="navigation-toggle" type="button" aria-label="打开导航菜单" aria-controls="mobile-navigation" :aria-expanded="navigationOpen" @click="navigationOpen=true"><el-icon><Expand/></el-icon></button><div class="breadcrumb"><span class="breadcrumb-root">控制台 /</span><span class="current-page">{{ title }}</span></div></div><div class="account"><b>{{ user.role==='admin'?'Admin':user.username }}</b><span class="sync-status" :class="{connected:liveState==='实时连接'}"><i/>{{liveState}}</span><el-button class="header-tool refresh-tool" :class="{'is-refreshing':refreshing}" :icon="Refresh" :disabled="refreshing" title="刷新当前页面" aria-label="刷新当前页面" @click="refreshPage"/><el-button class="header-tool theme-toggle" :icon="isDark?Sunny:Moon" :title="isDark?'切换浅色模式':'切换深色模式'" :aria-label="isDark?'切换浅色模式':'切换深色模式'" @click="toggleTheme"/><el-button class="header-tool settings-tool" :icon="Setting" title="修改密码" aria-label="修改密码" @click="passwordDialog=true"/><el-button class="header-tool logout-tool" title="退出登录" aria-label="退出登录" :disabled="busy" @click="signOut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4"/><path class="logout-arrow" d="M13 8l4 4-4 4m-5-4h9"/></svg></el-button></div></header>
     <section class="content"><div v-if="active!=='dashboard'" class="page-title"><h1>{{ title }}</h1><div class="actions"><el-button v-if="active === 'servers' && writer" type="primary" :icon="Plus" @click="editServer()">添加服务器</el-button><el-button v-if="active === 'users' && admin" type="primary" :icon="Plus" @click="userDialog = true">创建用户</el-button></div></div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="notice" />
-    <Overview :api="cachedAPI" v-if="active === 'dashboard'" :summary="summary" :overview="overview" :admin="admin" :range="trendRange" @range="(value:string)=>{trendRange=value;void load()}" @navigate="navigate" @show-event="event=>detail=event" @all-events="showAllEvents"/>
+    <Overview :api="cachedAPI" v-if="active === 'dashboard'" :summary="summary" :overview="overview" :admin="admin" :range="trendRange" :trend-loading="trendLoading" @range="changeTrendRange" @navigate="navigate" @show-event="event=>detail=event" @all-events="showAllEvents"/>
     <LoginProtection v-else-if="active==='login-protection'" ref="protectionPage" :api="cachedAPI"/>
     <GeoIPSettings v-else-if="active==='geoip'" ref="geoIPPage" :api="cachedAPI"/>
     <DatabaseSettings v-else-if="active==='database'" ref="databasePage" :api="api"/>

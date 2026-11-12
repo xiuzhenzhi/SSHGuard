@@ -9,7 +9,7 @@ import { isDark } from '../lib/theme';
 
 echarts.use([LineChart,GridComponent,TooltipComponent,AriaComponent,CanvasRenderer]);
 type Bucket={at:string,success:number,failure:number};
-const props=defineProps<{buckets:Bucket[],range:string}>();
+const props=defineProps<{buckets:Bucket[],range:string,loading?:boolean}>();
 const emit=defineEmits<{range:[value:string]}>();
 const host=ref<HTMLElement|null>(null),active=ref<number|null>(null);
 const totals=computed(()=>props.buckets.reduce((v,b)=>({success:v.success+b.success,failure:v.failure+b.failure}),{success:0,failure:0}));
@@ -51,8 +51,13 @@ onMounted(()=>{
 onUnmounted(()=>{observer?.disconnect();window.removeEventListener('pointermove',outside);window.removeEventListener('pointerover',outside);window.removeEventListener('pointerdown',outside);window.removeEventListener('blur',hideTip);document.removeEventListener('visibilitychange',visible);motion.removeEventListener('change',render);chart?.dispose();chart=undefined;});
 </script>
 <template>
- <section class="panel trend-panel"><div class="panel-heading trend-heading" @pointerenter="hideTip"><h3>登录趋势</h3><div class="trend-inline-totals"><span>成功登录 <b><AnimatedNumber :value="totals.success"/></b></span><span>认证失败 <b><AnimatedNumber :value="totals.failure"/></b></span></div><div class="range-switch" aria-label="趋势时间范围"><button v-for="(text,value) in {'24h':'24小时','7d':'7天','14d':'14天','30d':'30天'}" :key="value" :aria-pressed="range===value" :class="{selected:range===value}" @click="hideTip();emit('range',value)">{{text}}</button></div></div>
+ <section class="panel trend-panel" :aria-busy="loading"><div class="panel-heading trend-heading" @pointerenter="hideTip"><h3>登录趋势</h3><div class="trend-inline-totals"><span>成功登录 <b><AnimatedNumber :value="totals.success"/></b></span><span>认证失败 <b><AnimatedNumber :value="totals.failure"/></b></span></div><div class="range-switch" aria-label="趋势时间范围"><button v-for="(text,value) in {'24h':'24小时','7d':'7天','14d':'14天','30d':'30天'}" :key="value" :aria-pressed="range===value" :class="{selected:range===value}" @click="hideTip();emit('range',value)">{{text}}</button></div></div>
  <div class="trend-legend"><span><i class="trend-success-dot"/>成功</span><span><i class="trend-failure-dot"/>失败</span><small v-if="range!=='24h'">按 UTC 日汇总</small></div>
+ <div v-if="loading" class="trend-loading" role="status">正在加载趋势…</div>
  <div class="echarts-trend" tabindex="0" role="group" :aria-label="`登录趋势，成功 ${totals.success} 次，失败 ${totals.failure} 次。左右方向键查看明细，Esc 关闭。`" @keydown.left.prevent="move(-1)" @keydown.right.prevent="move(1)" @keydown.esc.prevent="hideTip" @blur="hideTip" @pointerleave="hideTip"><div ref="host" class="echarts-canvas"/></div>
  </section>
 </template>
+
+<style scoped>
+.trend-panel{position:relative}.trend-loading{position:absolute;inset:110px 0 0;display:grid;place-items:center;z-index:1;color:var(--text-muted,#657089);pointer-events:none}
+</style>
