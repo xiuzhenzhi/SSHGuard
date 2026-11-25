@@ -78,7 +78,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_ref || github.sha }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: go.mod
       - if: runner.os == 'Windows'
@@ -104,7 +104,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_ref || github.sha }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: go.mod
       - if: runner.os == 'Windows'
@@ -137,7 +137,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_ref || github.sha }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: go.mod
       - run: go test -race ./internal/storage/... ./internal/api
@@ -156,7 +156,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24'
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: go.mod
       - run: node --test scripts/tests/*.test.mjs
@@ -178,7 +178,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_ref || github.sha }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: go.mod
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
@@ -218,7 +218,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_ref || github.sha }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - run: go test ./internal/api -run TestIntegration -count=1 -v
@@ -254,7 +254,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_ref || github.sha }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - run: go test ./internal/api -run TestIntegration -count=1 -v
@@ -327,7 +327,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           ref: ${{ inputs.source_ref || github.sha }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
